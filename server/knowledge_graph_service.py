@@ -34,6 +34,9 @@ class KnowledgeGraphService:
         logger.info(f"Processing document: {file_name} for user {user_id}")
         
         try:
+            # Determine file extension
+            extension = file_name.split('.')[-1].lower() if '.' in file_name else ""
+            
             # Process the document
             doc_result = self.processor.process_file(file_path, file_type)
             
@@ -47,7 +50,7 @@ class KnowledgeGraphService:
                 "content": doc_result.get("text", "")[:1000],  # Store first 1000 chars as preview
                 "filePath": file_path,
                 "fileName": file_name,
-                "fileType": file_type
+                "fileType": file_type or extension
             }, user_id)
             
             if not doc_node:
@@ -73,15 +76,41 @@ class KnowledgeGraphService:
                         "HAS_METADATA", {}, user_id
                     )
             
-            # Extract entities and relationships from text
-            extract_result = self.processor.extract_entities_and_relationships(doc_result.get("text", ""))
-            
             # Track created nodes and relationships
             created_nodes = [doc_node]
             if metadata_node:
                 created_nodes.append(metadata_node)
                 
             created_relationships = []
+            
+            # Special handling for structured data files
+            is_structured_data = extension in ['json', 'csv', 'xml', 'xls', 'xlsx', 'tsv']
+            
+            if is_structured_data:
+                # Process structured data differently depending on the format
+                if extension in ['json']:
+                    # Create data structure nodes for JSON
+                    structure_node = self._create_json_structure_nodes(doc_result, doc_node, user_id)
+                    if structure_node:
+                        created_nodes.append(structure_node)
+                
+                elif extension in ['csv', 'tsv']:
+                    # Create column and data nodes for tabular data
+                    column_nodes = self._create_csv_structure_nodes(doc_result, doc_node, user_id)
+                    created_nodes.extend(column_nodes)
+                
+                elif extension in ['xls', 'xlsx']:
+                    # Create sheet and column nodes for Excel data
+                    sheet_nodes = self._create_excel_structure_nodes(doc_result, doc_node, user_id)
+                    created_nodes.extend(sheet_nodes)
+                
+                elif extension in ['xml']:
+                    # Create element structure nodes for XML
+                    element_nodes = self._create_xml_structure_nodes(doc_result, doc_node, user_id)
+                    created_nodes.extend(element_nodes)
+            
+            # Extract entities and relationships from text
+            extract_result = self.processor.extract_entities_and_relationships(doc_result.get("text", ""))
             
             # Create entity nodes
             entity_nodes = {}  # name -> node
@@ -160,8 +189,9 @@ class KnowledgeGraphService:
                     "name": file_name,
                     "nodeCount": len(created_nodes),
                     "relationshipCount": len(created_relationships),
+                    "fileType": extension
                 },
-                "entities": [node.name for node in created_nodes if node.label != "Document" and node.label != "Chunk"],
+                "entities": [node.name for node in created_nodes if node.label not in ["Document", "Chunk", "Metadata"]],
                 "chunks": len(chunk_nodes),
                 "graphData": graph_overview.graphData,
                 "stats": graph_overview.stats
@@ -268,16 +298,247 @@ class KnowledgeGraphService:
                 "graphData": {"nodes": [], "links": []}
             }
     
+    def _create_json_structure_nodes(self, doc_result: Dict[str, Any], doc_node, user_id: int):
+        """Create nodes representing JSON structure"""
+        try:
+            metadata = doc_result.get("metadata", {})
+            structure_type = metadata.get("structure", "")
+            
+            # Create a structure node based on the JSON structure
+            structure_properties = {
+                "name": f"JSON Structure ({structure_type})",
+                "structure_type": structure_type
+            }
+            
+            # Add keys for objects or count for arrays
+            if structure_type == "object" and "keys" in metadata:
+                structure_properties["keys"] = ", ".join(metadata["keys"])
+                structure_properties["key_count"] = len(metadata["keys"])
+            elif structure_type == "array" and "count" in metadata:
+                structure_properties["item_count"] = metadata["count"]
+                if "sample_keys" in metadata:
+                    structure_properties["sample_keys"] = ", ".join(metadata["sample_keys"])
+            
+            structure_node = self.db.create_node("JSONStructure", structure_properties, user_id)
+            
+            if structure_node:
+                # Link structure to document
+                self.db.create_relationship(
+                    doc_node.id, structure_node.id,
+                    "HAS_STRUCTURE", {}, user_id
+                )
+                
+                # Create nodes for each key in object or columns in array items
+                if structure_type == "object" and "keys" in metadata:
+                    for key in metadata["keys"]:
+                        key_node = self.db.create_node("JSONKey", {
+                            "name": key
+                        }, user_id)
+                        
+                        if key_node:
+                            self.db.create_relationship(
+                                structure_node.id, key_node.id,
+                                "HAS_PROPERTY", {}, user_id
+                            )
+                
+                elif structure_type == "array" and "sample_keys" in metadata:
+                    for key in metadata["sample_keys"]:
+                        key_node = self.db.create_node("JSONKey", {
+                            "name": key
+                        }, user_id)
+                        
+                        if key_node:
+                            self.db.create_relationship(
+                                structure_node.id, key_node.id,
+                                "HAS_PROPERTY", {}, user_id
+                            )
+            
+            return structure_node
+        except Exception as e:
+            logger.error(f"Error creating JSON structure nodes: {str(e)}")
+            return None
+    
+    def _create_csv_structure_nodes(self, doc_result: Dict[str, Any], doc_node, user_id: int):
+        """Create nodes representing CSV structure"""
+        try:
+            metadata = doc_result.get("metadata", {})
+            column_names = metadata.get("columns", [])
+            row_count = metadata.get("row_count", 0)
+            
+            # Create structure node for the CSV data
+            structure_node = self.db.create_node("CSVStructure", {
+                "name": f"CSV Data ({len(column_names)} columns, {row_count} rows)",
+                "column_count": len(column_names),
+                "row_count": row_count
+            }, user_id)
+            
+            if not structure_node:
+                return []
+            
+            # Link structure to document
+            self.db.create_relationship(
+                doc_node.id, structure_node.id,
+                "HAS_STRUCTURE", {}, user_id
+            )
+            
+            # Create nodes for each column
+            column_nodes = []
+            for i, column_name in enumerate(column_names):
+                column_node = self.db.create_node("CSVColumn", {
+                    "name": column_name,
+                    "index": i
+                }, user_id)
+                
+                if column_node:
+                    column_nodes.append(column_node)
+                    
+                    # Link column to structure
+                    self.db.create_relationship(
+                        structure_node.id, column_node.id,
+                        "HAS_COLUMN", {"index": i}, user_id
+                    )
+            
+            column_nodes.append(structure_node)
+            return column_nodes
+        except Exception as e:
+            logger.error(f"Error creating CSV structure nodes: {str(e)}")
+            return []
+    
+    def _create_excel_structure_nodes(self, doc_result: Dict[str, Any], doc_node, user_id: int):
+        """Create nodes representing Excel workbook structure"""
+        try:
+            metadata = doc_result.get("metadata", {})
+            sheet_names = metadata.get("sheets", [])
+            
+            # Create workbook structure node
+            workbook_node = self.db.create_node("ExcelWorkbook", {
+                "name": f"Excel Workbook ({len(sheet_names)} sheets)",
+                "sheet_count": len(sheet_names)
+            }, user_id)
+            
+            if not workbook_node:
+                return []
+            
+            # Link workbook to document
+            self.db.create_relationship(
+                doc_node.id, workbook_node.id,
+                "HAS_STRUCTURE", {}, user_id
+            )
+            
+            # Create nodes for each sheet
+            created_nodes = [workbook_node]
+            
+            for sheet_name in sheet_names:
+                sheet_node = self.db.create_node("ExcelSheet", {
+                    "name": sheet_name
+                }, user_id)
+                
+                if sheet_node:
+                    created_nodes.append(sheet_node)
+                    
+                    # Link sheet to workbook
+                    self.db.create_relationship(
+                        workbook_node.id, sheet_node.id,
+                        "HAS_SHEET", {}, user_id
+                    )
+            
+            return created_nodes
+        except Exception as e:
+            logger.error(f"Error creating Excel structure nodes: {str(e)}")
+            return []
+    
+    def _create_xml_structure_nodes(self, doc_result: Dict[str, Any], doc_node, user_id: int):
+        """Create nodes representing XML structure"""
+        try:
+            metadata = doc_result.get("metadata", {})
+            root_tag = metadata.get("root_tag", "root")
+            element_count = metadata.get("element_count", 0)
+            attribute_count = metadata.get("attribute_count", 0)
+            
+            # Create structure node for XML document
+            structure_node = self.db.create_node("XMLStructure", {
+                "name": f"XML Document <{root_tag}>",
+                "root_tag": root_tag,
+                "element_count": element_count,
+                "attribute_count": attribute_count
+            }, user_id)
+            
+            if not structure_node:
+                return []
+            
+            # Link structure to document
+            self.db.create_relationship(
+                doc_node.id, structure_node.id,
+                "HAS_STRUCTURE", {}, user_id
+            )
+            
+            # Create node for root element
+            root_node = self.db.create_node("XMLElement", {
+                "name": root_tag,
+                "tag": root_tag,
+                "is_root": True,
+                "child_count": metadata.get("child_count", 0)
+            }, user_id)
+            
+            created_nodes = [structure_node]
+            
+            if root_node:
+                created_nodes.append(root_node)
+                
+                # Link root element to structure
+                self.db.create_relationship(
+                    structure_node.id, root_node.id,
+                    "HAS_ROOT_ELEMENT", {}, user_id
+                )
+            
+            return created_nodes
+        except Exception as e:
+            logger.error(f"Error creating XML structure nodes: {str(e)}")
+            return []
+            
     def get_document_entities(self, document_id: str, user_id: int) -> Dict[str, Any]:
         """Get entities and relationships associated with a document"""
         try:
-            subgraph = self.db.query_subgraph("""
+            # First, get the document type to determine the appropriate query
+            doc_type_result = self.db.query_subgraph("""
+            MATCH (d:Document)
+            WHERE d.id = $document_id AND d.created_by = $user_id
+            RETURN d
+            """, {
+                "document_id": document_id,
+                "user_id": user_id
+            })
+            
+            # Default query for text documents
+            query = """
             MATCH (d:Document)-[r1:MENTIONS]->(e)
             WHERE d.id = $document_id AND d.created_by = $user_id
             OPTIONAL MATCH (e)-[r2]-(related)
             WHERE related.created_by = $user_id AND related <> d
             RETURN d, r1, e, r2, related
-            """, {
+            """
+            
+            # If we have structure information, include it in the query
+            if len(doc_type_result.nodes) > 0:
+                doc_node = doc_type_result.nodes[0]
+                file_type = getattr(doc_node, "fileType", "")
+                
+                if file_type in ['json', 'csv', 'tsv', 'xml', 'xls', 'xlsx']:
+                    # Query for structured data files
+                    query = """
+                    MATCH (d:Document)-[r1]->(s)
+                    WHERE d.id = $document_id AND d.created_by = $user_id
+                    OPTIONAL MATCH (s)-[r2]->(e)
+                    WHERE e.created_by = $user_id
+                    OPTIONAL MATCH (d)-[r3:MENTIONS]->(m)
+                    WHERE m.created_by = $user_id
+                    OPTIONAL MATCH (m)-[r4]-(related)
+                    WHERE related.created_by = $user_id AND related <> d
+                    RETURN d, r1, s, r2, e, r3, m, r4, related
+                    """
+            
+            # Execute the query
+            subgraph = self.db.query_subgraph(query, {
                 "document_id": document_id,
                 "user_id": user_id
             })

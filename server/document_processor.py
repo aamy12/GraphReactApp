@@ -107,8 +107,13 @@ class DocumentProcessor:
             elif file_type and 'image' in file_type and self.ocr_available:
                 return self._process_image(file_path)
                 
+            elif file_type and ('json' in file_type or 'csv' in file_type or 
+                               'excel' in file_type or 'xml' in file_type):
+                # Handle data formats with the specialized text file processor
+                return self._process_text_file(file_path)
+                
             else:
-                # Default to text processing
+                # Default to general text processing
                 return self._process_text_file(file_path)
                 
         except Exception as e:
@@ -214,36 +219,148 @@ class DocumentProcessor:
                 "extension": extension,
                 "size": file_stats.st_size,
                 "modified": file_stats.st_mtime,
+                "file_type": extension
             }
             
-            # Read file content
+            # Read file content as string
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 text = f.read()
             
             # Special handling for structured formats
-            if extension == 'json':
+            structured_text = text  # Default for plain text files
+            
+            # Process JSON data
+            if extension == 'json' or extension == 'jsonl':
                 try:
                     # Extract JSON structure information
                     json_data = json.loads(text)
+                    
                     if isinstance(json_data, dict):
                         metadata["keys"] = list(json_data.keys())
+                        metadata["structure"] = "object"
+                        # Format JSON data for better readability
+                        structured_text = json.dumps(json_data, indent=2)
                     elif isinstance(json_data, list):
                         metadata["count"] = len(json_data)
+                        metadata["structure"] = "array"
+                        # Get sample data and types
+                        if len(json_data) > 0 and isinstance(json_data[0], dict):
+                            metadata["sample_keys"] = list(json_data[0].keys())
+                        # Format JSON data for better readability
+                        structured_text = json.dumps(json_data[:10], indent=2)  # Show first 10 items
+                        if len(json_data) > 10:
+                            structured_text += f"\n\n... ({len(json_data) - 10} more items)"
                 except Exception as e:
                     logger.warning(f"Failed to parse JSON: {e}")
             
+            # Process CSV/TSV data
+            elif extension == 'csv' or extension == 'tsv':
+                try:
+                    delimiter = ',' if extension == 'csv' else '\t'
+                    csv_data = []
+                    header = []
+                    
+                    # Parse CSV data
+                    csv_reader = csv.reader(StringIO(text), delimiter=delimiter)
+                    for i, row in enumerate(csv_reader):
+                        if i == 0:
+                            header = row
+                            metadata["columns"] = header
+                            metadata["column_count"] = len(header)
+                        if i < 20:  # Limit to first 20 rows for processing
+                            csv_data.append(row)
+                        else:
+                            break
+                    
+                    metadata["row_count"] = sum(1 for _ in csv.reader(StringIO(text))) - 1  # Minus header
+                    
+                    # Format as readable text
+                    structured_text = f"CSV data with {metadata['column_count']} columns and {metadata['row_count']} rows\n\n"
+                    structured_text += "Header: " + ", ".join(header) + "\n\n"
+                    
+                    # Format some sample rows
+                    for i, row in enumerate(csv_data[:10]):
+                        if i > 0:  # Skip header
+                            structured_text += f"Row {i}: " + ", ".join(row) + "\n"
+                    
+                    if metadata["row_count"] > 10:
+                        structured_text += f"\n... ({metadata['row_count'] - 9} more rows)"
+                except Exception as e:
+                    logger.warning(f"Failed to parse CSV/TSV: {e}")
+            
+            # Process XML data
+            elif extension == 'xml':
+                try:
+                    # Parse XML data
+                    root = ET.fromstring(text)
+                    
+                    # Extract basic metadata
+                    metadata["root_tag"] = root.tag
+                    metadata["child_count"] = len(root)
+                    
+                    # Count elements and attributes
+                    element_count = 0
+                    attr_count = 0
+                    for elem in root.iter():
+                        element_count += 1
+                        attr_count += len(elem.attrib)
+                    
+                    metadata["element_count"] = element_count
+                    metadata["attribute_count"] = attr_count
+                    
+                    # Create a readable summary
+                    structured_text = f"XML document with root <{root.tag}>\n"
+                    structured_text += f"Contains {element_count} elements and {attr_count} attributes\n\n"
+                    
+                    # Include the original text
+                    structured_text += text[:2000]  # First 2000 chars of the XML
+                    if len(text) > 2000:
+                        structured_text += "\n\n... (truncated)"
+                except Exception as e:
+                    logger.warning(f"Failed to parse XML: {e}")
+            
+            # Process Excel files
+            elif extension == 'xls' or extension == 'xlsx':
+                try:
+                    import pandas as pd
+                    
+                    # Read Excel file with pandas (if available)
+                    excel_data = pd.read_excel(file_path, sheet_name=None, nrows=50)
+                    
+                    # Extract metadata
+                    metadata["sheet_count"] = len(excel_data)
+                    metadata["sheets"] = list(excel_data.keys())
+                    
+                    # Create a text representation of the Excel data
+                    structured_text = f"Excel file with {len(excel_data)} sheets:\n\n"
+                    
+                    for sheet_name, df in excel_data.items():
+                        rows, cols = df.shape
+                        structured_text += f"Sheet: {sheet_name} ({cols} columns, {rows} rows)\n"
+                        structured_text += "Columns: " + ", ".join(df.columns.astype(str)) + "\n\n"
+                        
+                        # Add sample data (first 10 rows)
+                        structured_text += df.head(10).to_string() + "\n\n"
+                        if rows > 10:
+                            structured_text += f"... ({rows - 10} more rows)\n\n"
+                except ImportError:
+                    logger.warning("Pandas not available for Excel processing")
+                    structured_text = "Excel file (install pandas for detailed processing)"
+                except Exception as e:
+                    logger.warning(f"Failed to parse Excel file: {e}")
+            
             # Create document chunks
-            chunks = self._create_document_chunks(text, metadata)
+            chunks = self._create_document_chunks(structured_text, metadata)
             
             return {
-                "text": text,
+                "text": structured_text,
                 "metadata": metadata,
                 "chunks": chunks
             }
             
         except Exception as e:
-            logger.error(f"Error processing text file {file_path}: {str(e)}")
-            return {"error": f"Text file processing error: {str(e)}"}
+            logger.error(f"Error processing file {file_path}: {str(e)}")
+            return {"error": f"File processing error: {str(e)}"}
     
     def _create_document_chunks(self, text: str, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Split text into chunks and add embeddings if available"""

@@ -150,6 +150,35 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
   const getFileIcon = (file: File) => {
     const fileName = file.name.toLowerCase();
     
+    // Import additional icons
+    const FileJson = () => (
+      <div className="h-10 w-10 flex items-center justify-center text-purple-600 relative">
+        <FileText className="h-10 w-10 absolute" />
+        <span className="z-10 text-xs font-bold mt-1">JSON</span>
+      </div>
+    );
+    
+    const FileCsv = () => (
+      <div className="h-10 w-10 flex items-center justify-center text-green-600 relative">
+        <FileText className="h-10 w-10 absolute" />
+        <span className="z-10 text-xs font-bold mt-1">CSV</span>
+      </div>
+    );
+    
+    const FileExcel = () => (
+      <div className="h-10 w-10 flex items-center justify-center text-green-700 relative">
+        <FileText className="h-10 w-10 absolute" />
+        <span className="z-10 text-xs font-bold mt-1">XLS</span>
+      </div>
+    );
+    
+    const FileXml = () => (
+      <div className="h-10 w-10 flex items-center justify-center text-amber-600 relative">
+        <FileText className="h-10 w-10 absolute" />
+        <span className="z-10 text-xs font-bold mt-1">XML</span>
+      </div>
+    );
+    
     // Check by MIME type first
     if (file.type.includes('pdf')) {
       return <FileText className="h-10 w-10 text-red-500" />;
@@ -157,10 +186,14 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
       return <FileImage className="h-10 w-10 text-blue-500" />;
     } else if (file.type.includes('word') || file.type.includes('document')) {
       return <FileText className="h-10 w-10 text-blue-700" />;
-    } else if (file.type.includes('json') || file.type.includes('csv') || 
-               file.type.includes('excel') || file.type.includes('spreadsheet') ||
-               file.type.includes('xml')) {
-      return <FileText className="h-10 w-10 text-green-600" />;
+    } else if (file.type.includes('json')) {
+      return <FileJson />;
+    } else if (file.type.includes('csv') || file.type.includes('tab-separated')) {
+      return <FileCsv />;
+    } else if (file.type.includes('excel') || file.type.includes('spreadsheet')) {
+      return <FileExcel />;
+    } else if (file.type.includes('xml')) {
+      return <FileXml />;
     }
     
     // Fallback to extension check
@@ -172,13 +205,14 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
     } else if (fileName.endsWith('.doc') || fileName.endsWith('.docx') || 
                fileName.endsWith('.txt')) {
       return <FileText className="h-10 w-10 text-blue-700" />;
-    } else if (fileName.endsWith('.json')) {
-      return <FileText className="h-10 w-10 text-purple-600" />;
-    } else if (fileName.endsWith('.csv') || fileName.endsWith('.xls') || 
-               fileName.endsWith('.xlsx') || fileName.endsWith('.tsv')) {
-      return <FileText className="h-10 w-10 text-green-600" />;
+    } else if (fileName.endsWith('.json') || fileName.endsWith('.jsonl')) {
+      return <FileJson />;
+    } else if (fileName.endsWith('.csv') || fileName.endsWith('.tsv')) {
+      return <FileCsv />;
+    } else if (fileName.endsWith('.xls') || fileName.endsWith('.xlsx')) {
+      return <FileExcel />;
     } else if (fileName.endsWith('.xml')) {
-      return <FileText className="h-10 w-10 text-amber-600" />;
+      return <FileXml />;
     } else {
       return <FileArchive className="h-10 w-10 text-amber-500" />;
     }
