@@ -31,18 +31,25 @@ export default function Login({ setIsAuthenticated }: LoginProps) {
   const onSubmit = async (data: LoginInput) => {
     setIsLoading(true);
     try {
-      const response = await authAPI.login(data.username, data.password);
+      // TEMPORARY BYPASS: Allow any username/password combination
       
-      // Save token and user data to local storage
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      // Create mock user data
+      const mockUser = {
+        id: 1,
+        username: data.username,
+        email: `${data.username}@example.com`
+      };
+      
+      // Save mock token and user data to local storage
+      localStorage.setItem('token', 'mock-jwt-token');
+      localStorage.setItem('user', JSON.stringify(mockUser));
       
       // Update auth state
       setIsAuthenticated(true);
       
       toast({
         title: "Login successful",
-        description: "You have been logged in successfully.",
+        description: "You have been logged in successfully (bypass mode).",
       });
       
       // Redirect to dashboard

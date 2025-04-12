@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, QueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
@@ -11,20 +11,57 @@ import ResponseDisplay from "@/components/ResponseDisplay";
 import { graphAPI, healthAPI } from "@/lib/api";
 import { GraphData, QueryResponse, HealthStatus } from "@/types";
 
+// Mock data for development
+const MOCK_GRAPH_DATA: GraphData = {
+  nodes: [
+    { id: "1", label: "Person", name: "John Smith", properties: { age: 35, occupation: "Software Engineer" } },
+    { id: "2", label: "Company", name: "Tech Corp", properties: { founded: 2005, location: "San Francisco" } },
+    { id: "3", label: "Project", name: "Knowledge Graph App", properties: { startDate: "2023-01-15", status: "In Progress" } },
+    { id: "4", label: "Skill", name: "Graph Databases", properties: { level: "Expert" } },
+    { id: "5", label: "Person", name: "Jane Doe", properties: { age: 28, occupation: "Data Scientist" } },
+    { id: "6", label: "Technology", name: "Neo4j", properties: { version: "4.4", type: "Graph Database" } }
+  ],
+  links: [
+    { id: "1", source: "1", target: "2", type: "WORKS_AT", properties: { since: 2019, position: "Senior Developer" } },
+    { id: "2", source: "1", target: "3", type: "CONTRIBUTES_TO", properties: { role: "Lead Developer" } },
+    { id: "3", source: "1", target: "4", type: "HAS_SKILL", properties: { years: 5 } },
+    { id: "4", source: "2", target: "3", type: "OWNS", properties: { investment: "$500K" } },
+    { id: "5", source: "5", target: "2", type: "WORKS_AT", properties: { since: 2020, position: "Data Engineer" } },
+    { id: "6", source: "5", target: "3", type: "CONTRIBUTES_TO", properties: { role: "Data Architect" } },
+    { id: "7", source: "3", target: "6", type: "USES", properties: { version: "4.4.0" } }
+  ]
+};
+
+const MOCK_HEALTH_STATUS: HealthStatus = {
+  status: 'ok',
+  neo4j: 'connected',
+  llm: 'available'
+};
+
+const queryClient = new QueryClient();
+
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("query");
   const [queryResponse, setQueryResponse] = useState<QueryResponse | null>(null);
   
-  // Fetch graph overview
+  // Fetch graph overview with mock data
   const { data: graphOverview, isLoading: isGraphLoading, error: graphError } = useQuery({
     queryKey: ['/api/graph/overview'],
     staleTime: 30000, // 30 seconds
+    queryFn: () => Promise.resolve({
+      graphData: MOCK_GRAPH_DATA,
+      stats: {
+        nodeCount: MOCK_GRAPH_DATA.nodes.length,
+        relationshipCount: MOCK_GRAPH_DATA.links.length
+      }
+    })
   });
   
-  // Health check query
+  // Health check query with mock data
   const { data: healthStatus } = useQuery<HealthStatus>({
     queryKey: ['/api/health'],
     staleTime: 60000, // 1 minute
+    queryFn: () => Promise.resolve(MOCK_HEALTH_STATUS)
   });
 
   // Handle file upload completion
@@ -33,11 +70,24 @@ export default function Dashboard() {
     queryClient.invalidateQueries({ queryKey: ['/api/graph/overview'] });
   };
 
-  // Handle query submission
+  // Handle query submission with mock data
   const handleQuerySubmit = async (query: string) => {
     try {
-      const response = await graphAPI.query(query);
-      setQueryResponse(response.data);
+      // Create a mock response instead of calling the API
+      const mockResponse: QueryResponse = {
+        id: 1,
+        query: query,
+        response: `# Response to "${query}"\n\nBased on the knowledge graph, here's what I found:\n\n* The query is related to ${MOCK_GRAPH_DATA.nodes.length} entities in the knowledge graph.\n* The most relevant connections are between people and projects.\n\n## Key Insights\n\n* John Smith works at Tech Corp and contributes to the Knowledge Graph App.\n* Jane Doe also works at Tech Corp as a Data Engineer.\n* The Knowledge Graph App uses Neo4j technology.\n* Both team members have complementary skills that help with the project development.`,
+        graphData: {
+          // Include a subset of the mock data to simulate a query-specific result
+          nodes: MOCK_GRAPH_DATA.nodes.slice(0, 4),
+          links: MOCK_GRAPH_DATA.links.slice(0, 3)
+        }
+      };
+      
+      // Set the response and switch tabs
+      setQueryResponse(mockResponse);
+      
       // Switch to query tab if not already active
       setActiveTab("query");
     } catch (error) {

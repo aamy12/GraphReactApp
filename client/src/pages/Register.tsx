@@ -32,18 +32,25 @@ export default function Register({ setIsAuthenticated }: RegisterProps) {
   const onSubmit = async (data: RegisterInput) => {
     setIsLoading(true);
     try {
-      const response = await authAPI.register(data.username, data.password, data.email);
+      // TEMPORARY BYPASS: Allow any registration without backend validation
       
-      // Save token and user data to local storage
-      localStorage.setItem('token', response.data.token);
-      localStorage.setItem('user', JSON.stringify(response.data.user));
+      // Create mock user data
+      const mockUser = {
+        id: 1,
+        username: data.username,
+        email: data.email
+      };
+      
+      // Save mock token and user data to local storage
+      localStorage.setItem('token', 'mock-jwt-token');
+      localStorage.setItem('user', JSON.stringify(mockUser));
       
       // Update auth state
       setIsAuthenticated(true);
       
       toast({
         title: "Registration successful",
-        description: "Your account has been created successfully.",
+        description: "Your account has been created successfully (bypass mode).",
       });
       
       // Redirect to dashboard

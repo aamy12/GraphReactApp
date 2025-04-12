@@ -21,7 +21,7 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // File upload mutation
+  // File upload mutation with mock implementation for demo
   const uploadMutation = useMutation({
     mutationFn: (file: File) => {
       setUploading(true);
@@ -36,15 +36,47 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
         });
       }, 100);
       
-      return fileAPI.uploadFile(file)
-        .then(response => {
+      // Return a promise that resolves with mock data after a delay
+      return new Promise<FileUploadResponse>((resolve) => {
+        setTimeout(() => {
           clearInterval(progressInterval);
           setUploadProgress(100);
-          return response.data;
-        })
-        .finally(() => {
+          
+          // Create mock response data
+          const mockResponse: FileUploadResponse = {
+            message: "File processed successfully",
+            file: {
+              id: 1,
+              name: file.name,
+              size: file.size
+            },
+            graph: {
+              nodesCreated: 12,
+              relationshipsCreated: 18,
+              graphData: {
+                nodes: [
+                  { id: "101", label: "Concept", name: "Knowledge Graphs", properties: { domain: "Computer Science" } },
+                  { id: "102", label: "Person", name: "Alan Turing", properties: { born: 1912, field: "Computer Science" } },
+                  { id: "103", label: "Algorithm", name: "Graph Traversal", properties: { complexity: "O(n+e)" } },
+                  { id: "104", label: "Technology", name: "Natural Language Processing", properties: { status: "Active" } },
+                  { id: "105", label: "Tool", name: "Graph Databases", properties: { example: "Neo4j" } },
+                  { id: "106", label: "Application", name: "Information Retrieval", properties: { utility: "High" } }
+                ],
+                links: [
+                  { id: "201", source: "101", target: "103", type: "USES", properties: { context: "Data Organization" } },
+                  { id: "202", source: "102", target: "101", type: "CONTRIBUTED_TO", properties: { year: 1936 } },
+                  { id: "203", source: "104", target: "106", type: "ENABLES", properties: {} },
+                  { id: "204", source: "105", target: "101", type: "IMPLEMENTS", properties: { efficiency: "High" } },
+                  { id: "205", source: "106", target: "105", type: "UTILIZES", properties: { purpose: "Data Storage" } }
+                ]
+              }
+            }
+          };
+          
+          resolve(mockResponse);
           setUploading(false);
-        });
+        }, 2000); // Simulate 2-second upload
+      });
     },
     onSuccess: (data) => {
       setUploadResult(data);
