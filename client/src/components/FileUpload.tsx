@@ -165,7 +165,7 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
                   ref={fileInputRef}
                   className="hidden"
                   onChange={handleFileChange}
-                  accept=".txt,.json,.md"
+                  accept=".txt,.pdf,.png,.jpg,.jpeg,.json,.md,.csv,.xml,.tiff,.bmp"
                 />
                 <p className="text-xs text-muted-foreground mt-4">
                   Supported files: TXT, PDF, Images (PNG, JPG, JPEG), JSON, MD, CSV

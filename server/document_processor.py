@@ -1,17 +1,38 @@
 import os
+import re
+import json
 import logging
 import tempfile
-from typing import Dict, List, Any, Optional, Tuple, Union
+from typing import Dict, List, Any, Optional, Tuple
+import uuid
 from pathlib import Path
-import json
+import base64
 
-from pypdf import PdfReader
-from PIL import Image
-import pytesseract
-from langchain.text_splitter import RecursiveCharacterTextSplitter
-from langchain_openai import OpenAIEmbeddings
-from langchain.docstore.document import Document
+# PDF processing
+try:
+    from pypdf import PdfReader
+except ImportError:
+    PdfReader = None
 
+# Image processing
+try:
+    from PIL import Image
+    import pytesseract
+except ImportError:
+    Image = None
+    pytesseract = None
+
+# Text processing
+try:
+    from langchain.text_splitter import RecursiveCharacterTextSplitter
+    from langchain_openai import OpenAIEmbeddings
+    from langchain.docstore.document import Document
+except ImportError:
+    RecursiveCharacterTextSplitter = None
+    OpenAIEmbeddings = None
+    Document = None
+
+# Configure logging
 logger = logging.getLogger(__name__)
 
 class DocumentProcessor:
@@ -19,19 +40,28 @@ class DocumentProcessor:
     
     def __init__(self):
         """Initialize the document processor"""
-        self.text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=1000,
-            chunk_overlap=200,
-        )
+        # Check if components are available
+        self.pdf_available = PdfReader is not None
+        self.ocr_available = Image is not None and pytesseract is not None
+        self.langchain_available = RecursiveCharacterTextSplitter is not None
         
-        # Initialize embeddings if OpenAI API key is available
-        openai_api_key = os.getenv("OPENAI_API_KEY")
-        if openai_api_key:
-            self.embeddings = OpenAIEmbeddings(api_key=openai_api_key)
-        else:
-            self.embeddings = None
-            logger.warning("No OpenAI API key found. Embeddings will not be available.")
-    
+        # Initialize text splitter if available
+        self.text_splitter = None
+        if self.langchain_available:
+            self.text_splitter = RecursiveCharacterTextSplitter(
+                chunk_size=1000,
+                chunk_overlap=200,
+                separators=["\n\n", "\n", ".", " ", ""]
+            )
+            
+        # Check for OpenAI API key for embeddings
+        self.embeddings = None
+        if OpenAIEmbeddings is not None and os.environ.get("OPENAI_API_KEY"):
+            try:
+                self.embeddings = OpenAIEmbeddings(model="text-embedding-ada-002")
+            except Exception as e:
+                logger.warning(f"Failed to initialize OpenAI embeddings: {e}")
+
     def process_file(self, file_path: str, file_type: str = None) -> Dict[str, Any]:
         """
         Process a file and extract its content
@@ -43,233 +73,313 @@ class DocumentProcessor:
         Returns:
             Dict containing extracted text, metadata, and optionally embeddings
         """
+        if not os.path.exists(file_path):
+            return {"error": f"File not found: {file_path}"}
+        
+        # Determine file type if not provided
         if not file_type:
-            # Try to determine file type from extension
-            file_type = Path(file_path).suffix.lower()
+            file_name = os.path.basename(file_path)
+            extension = file_name.split('.')[-1].lower() if '.' in file_name else ""
+            
+            if extension in ['pdf']:
+                file_type = 'application/pdf'
+            elif extension in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff']:
+                file_type = f'image/{extension}'
+            elif extension in ['txt', 'md', 'csv', 'json', 'xml']:
+                file_type = f'text/{extension}'
         
         # Process based on file type
-        if file_type in ['.pdf', 'application/pdf']:
-            return self._process_pdf(file_path)
-        elif file_type in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp', 
-                          'image/png', 'image/jpeg', 'image/tiff', 'image/bmp']:
-            return self._process_image(file_path)
-        elif file_type in ['.txt', '.md', '.csv', '.json', '.xml', 
-                          'text/plain', 'text/markdown', 'text/csv', 'application/json', 'application/xml']:
-            return self._process_text_file(file_path)
-        else:
-            logger.warning(f"Unsupported file type: {file_type}")
-            # Try to process as text file
-            return self._process_text_file(file_path)
+        try:
+            if file_type and 'pdf' in file_type and self.pdf_available:
+                return self._process_pdf(file_path)
+                
+            elif file_type and 'image' in file_type and self.ocr_available:
+                return self._process_image(file_path)
+                
+            else:
+                # Default to text processing
+                return self._process_text_file(file_path)
+                
+        except Exception as e:
+            logger.error(f"Error processing file {file_path}: {str(e)}")
+            return {"error": f"Processing error: {str(e)}"}
     
     def _process_pdf(self, file_path: str) -> Dict[str, Any]:
         """Process a PDF file and extract text"""
+        if not self.pdf_available:
+            return {"error": "PDF processing not available. Install pypdf package."}
+        
         try:
-            pdf_reader = PdfReader(file_path)
-            text = ""
+            logger.info(f"Processing PDF file: {file_path}")
             
-            # Extract metadata from PDF
-            metadata = {}
-            if pdf_reader.metadata:
-                for key, value in pdf_reader.metadata.items():
-                    if key and value:
-                        # Strip the leading slash in PDF metadata keys
-                        clean_key = str(key)
-                        if clean_key.startswith('/'):
-                            clean_key = clean_key[1:]
-                        metadata[clean_key] = str(value)
+            # Extract text from PDF
+            reader = PdfReader(file_path)
+            
+            # Get metadata
+            metadata = {
+                "pageCount": len(reader.pages),
+                "title": reader.metadata.title if reader.metadata.title else "",
+                "author": reader.metadata.author if reader.metadata.author else "",
+                "creator": reader.metadata.creator if reader.metadata.creator else "",
+                "producer": reader.metadata.producer if reader.metadata.producer else "",
+            }
             
             # Extract text from each page
-            pages_text = []
-            for page_num, page in enumerate(pdf_reader.pages):
+            text = ""
+            for i, page in enumerate(reader.pages):
                 page_text = page.extract_text()
                 if page_text:
-                    text += page_text + "\n\n"
-                    pages_text.append({
-                        "page_num": page_num + 1,
-                        "text": page_text
-                    })
+                    text += f"\n\n--- Page {i+1} ---\n\n"
+                    text += page_text
             
-            # Create document chunks
-            doc_chunks = self._create_document_chunks(text, metadata)
+            # Create document chunks for better processing
+            chunks = self._create_document_chunks(text, metadata)
             
             return {
                 "text": text,
                 "metadata": metadata,
-                "pages": pages_text,
-                "chunks": doc_chunks
+                "chunks": chunks
             }
+            
         except Exception as e:
-            logger.error(f"Error processing PDF file: {e}")
-            return {"error": str(e)}
+            logger.error(f"Error processing PDF {file_path}: {str(e)}")
+            return {"error": f"PDF processing error: {str(e)}"}
     
     def _process_image(self, file_path: str) -> Dict[str, Any]:
         """Process an image file and extract text using OCR"""
+        if not self.ocr_available:
+            return {"error": "OCR not available. Install Pillow and pytesseract packages."}
+        
         try:
+            logger.info(f"Processing image file: {file_path}")
+            
             # Open image
-            with Image.open(file_path) as img:
-                # Extract metadata
-                metadata = {
-                    "format": img.format,
-                    "mode": img.mode,
-                    "width": img.width,
-                    "height": img.height,
-                }
-                
-                # Extract EXIF data if available
-                if hasattr(img, '_getexif') and img._getexif():
-                    exif = img._getexif()
-                    if exif:
-                        for tag_id, value in exif.items():
-                            metadata[f"exif_{tag_id}"] = str(value)
-                
-                # Perform OCR
-                text = pytesseract.image_to_string(img)
-                
-                # Create document chunks
-                doc_chunks = self._create_document_chunks(text, metadata)
-                
-                return {
-                    "text": text,
-                    "metadata": metadata,
-                    "chunks": doc_chunks
-                }
+            image = Image.open(file_path)
+            
+            # Get metadata
+            metadata = {
+                "format": image.format,
+                "mode": image.mode,
+                "width": image.width,
+                "height": image.height,
+            }
+            
+            # Get EXIF data if available
+            if hasattr(image, '_getexif') and image._getexif():
+                exif = image._getexif()
+                if exif:
+                    for tag, value in exif.items():
+                        if isinstance(value, (str, int, float)):
+                            metadata[f"exif_{tag}"] = value
+            
+            # Perform OCR
+            text = pytesseract.image_to_string(image)
+            
+            # Create document chunks
+            chunks = self._create_document_chunks(text, metadata)
+            
+            return {
+                "text": text,
+                "metadata": metadata,
+                "chunks": chunks
+            }
+            
         except Exception as e:
-            logger.error(f"Error processing image file: {e}")
-            return {"error": str(e)}
+            logger.error(f"Error processing image {file_path}: {str(e)}")
+            return {"error": f"Image processing error: {str(e)}"}
     
     def _process_text_file(self, file_path: str) -> Dict[str, Any]:
         """Process a text file and extract its content"""
         try:
-            # Extract metadata
-            file_stat = os.stat(file_path)
+            logger.info(f"Processing text file: {file_path}")
+            
+            # Get file metadata
+            file_stats = os.stat(file_path)
+            file_name = os.path.basename(file_path)
+            extension = file_name.split('.')[-1].lower() if '.' in file_name else ""
+            
             metadata = {
-                "size": file_stat.st_size,
-                "created": file_stat.st_ctime,
-                "modified": file_stat.st_mtime,
-                "filename": os.path.basename(file_path),
+                "filename": file_name,
+                "extension": extension,
+                "size": file_stats.st_size,
+                "modified": file_stats.st_mtime,
             }
             
             # Read file content
             with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
                 text = f.read()
             
-            # Create document chunks
-            doc_chunks = self._create_document_chunks(text, metadata)
-            
-            # Check if it's JSON and extract structured data
-            structured_data = None
-            if file_path.endswith('.json'):
+            # Special handling for structured formats
+            if extension == 'json':
                 try:
-                    with open(file_path, 'r', encoding='utf-8') as f:
-                        structured_data = json.load(f)
-                except json.JSONDecodeError:
-                    pass
+                    # Extract JSON structure information
+                    json_data = json.loads(text)
+                    if isinstance(json_data, dict):
+                        metadata["keys"] = list(json_data.keys())
+                    elif isinstance(json_data, list):
+                        metadata["count"] = len(json_data)
+                except Exception as e:
+                    logger.warning(f"Failed to parse JSON: {e}")
             
-            result = {
+            # Create document chunks
+            chunks = self._create_document_chunks(text, metadata)
+            
+            return {
                 "text": text,
                 "metadata": metadata,
-                "chunks": doc_chunks
+                "chunks": chunks
             }
             
-            if structured_data:
-                result["structured_data"] = structured_data
-                
-            return result
         except Exception as e:
-            logger.error(f"Error processing text file: {e}")
-            return {"error": str(e)}
+            logger.error(f"Error processing text file {file_path}: {str(e)}")
+            return {"error": f"Text file processing error: {str(e)}"}
     
     def _create_document_chunks(self, text: str, metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
         """Split text into chunks and add embeddings if available"""
-        if not text:
-            return []
-        
-        # Split text into chunks
-        documents = self.text_splitter.create_documents([text])
-        
-        # Add metadata to all chunks
-        for doc in documents:
-            doc.metadata.update(metadata)
-        
-        # Process each chunk
         chunks = []
-        for i, doc in enumerate(documents):
-            chunk = {
-                "id": i,
-                "text": doc.page_content,
-                "metadata": doc.metadata
-            }
-            
-            # Add embeddings if available
-            if self.embeddings:
-                try:
-                    embedding = self.embeddings.embed_query(doc.page_content)
-                    chunk["embedding"] = embedding
-                except Exception as e:
-                    logger.error(f"Error creating embedding: {e}")
-            
-            chunks.append(chunk)
         
-        return chunks
+        if not text or not self.text_splitter:
+            # Return a single chunk if no text or splitter available
+            return [{"text": text or "", "metadata": metadata}]
+        
+        try:
+            # Create smaller chunks for better processing
+            docs = self.text_splitter.create_documents([text])
+            
+            # Process each chunk
+            for i, doc in enumerate(docs):
+                chunk = {
+                    "id": str(uuid.uuid4()),
+                    "text": doc.page_content,
+                    "metadata": {**metadata, "chunk": i, "chunk_total": len(docs)}
+                }
+                
+                # Add embeddings if available
+                if self.embeddings:
+                    try:
+                        embedding = self.embeddings.embed_query(doc.page_content)
+                        chunk["embedding"] = embedding
+                    except Exception as e:
+                        logger.warning(f"Failed to create embedding for chunk {i}: {e}")
+                
+                chunks.append(chunk)
+                
+            return chunks
+            
+        except Exception as e:
+            logger.error(f"Error creating document chunks: {str(e)}")
+            return [{"text": text, "metadata": metadata}]
     
     def extract_entities_and_relationships(self, text: str) -> Dict[str, Any]:
         """
         Extract entities and relationships from text using LLM
         
         This method would normally use an external API or model to extract entities
-        and relationships. For now, it's a placeholder.
+        and relationships. For now, it provides a basic implementation.
         """
-        # This would normally use a proper NLP pipeline or LLM
-        # As a fallback, we can use some basic pattern matching
+        if not text:
+            return {"entities": [], "relationships": []}
         
-        # Dummy implementation for demonstration - this would be replaced with a proper NLP solution
-        import re
-        
-        # Extract potential entities (capitalized words)
-        entity_matches = re.findall(r'\b([A-Z][a-z]+(?:\s[A-Z][a-z]+)*)\b', text)
+        # Simple regex-based entity extraction for basic entities
+        # This is a simplified implementation and would normally use an NLP model
         entities = []
-        seen = set()
-        
-        for match in entity_matches:
-            if match not in seen and len(match) > 3:  # Avoid short names and duplicates
-                seen.add(match)
-                entity_type = "Person" if match.count(" ") > 0 else "Concept"  # Simple heuristic
-                entities.append({
-                    "name": match,
-                    "type": entity_type,
-                    "mentions": text.count(match)
-                })
-        
-        # Simple relationship detection (entities appearing in same sentence)
-        sentences = re.split(r'[.!?]', text)
         relationships = []
         
-        for sentence in sentences:
-            sentence_entities = []
-            for entity in entities:
-                if entity["name"] in sentence:
-                    sentence_entities.append(entity["name"])
-            
-            # Create relationships between entities in same sentence
-            for i in range(len(sentence_entities)):
-                for j in range(i+1, len(sentence_entities)):
-                    ent1 = sentence_entities[i]
-                    ent2 = sentence_entities[j]
-                    # Don't create duplicate relationships
-                    if not any(r for r in relationships 
-                              if (r["source"] == ent1 and r["target"] == ent2) 
-                              or (r["source"] == ent2 and r["target"] == ent1)):
-                        relationships.append({
-                            "source": ent1,
-                            "target": ent2,
-                            "type": "MENTIONED_WITH",
-                            "sentence": sentence.strip()
-                        })
+        # Extract potential entities with simple regex patterns
+        # People (capitalized names)
+        person_pattern = r'\b([A-Z][a-z]+ [A-Z][a-z]+)\b'
+        person_matches = re.findall(person_pattern, text)
+        for name in set(person_matches):
+            entities.append({
+                "name": name,
+                "type": "Person",
+                "mentions": len(re.findall(re.escape(name), text))
+            })
         
+        # Organizations (capitalized multi-word phrases)
+        org_pattern = r'\b([A-Z][a-z]+ (?:[A-Z][a-z]+ )*(?:Inc\.|Corp\.|LLC|Company|Organization|University))\b'
+        org_matches = re.findall(org_pattern, text)
+        for org in set(org_matches):
+            entities.append({
+                "name": org,
+                "type": "Organization",
+                "mentions": len(re.findall(re.escape(org), text))
+            })
+        
+        # Locations (with simple patterns)
+        loc_pattern = r'\b([A-Z][a-z]+ (?:City|County|State|Country|Island|Mountain|River|Lake))\b'
+        loc_matches = re.findall(loc_pattern, text)
+        for loc in set(loc_matches):
+            entities.append({
+                "name": loc,
+                "type": "Location",
+                "mentions": len(re.findall(re.escape(loc), text))
+            })
+        
+        # Concepts (capitalized terms)
+        concept_pattern = r'\b([A-Z][a-z]{3,})\b'
+        concept_matches = re.findall(concept_pattern, text)
+        for concept in set(concept_matches):
+            if concept not in ['The', 'This', 'That', 'These', 'Those', 'There', 'They', 'Their']:
+                entities.append({
+                    "name": concept,
+                    "type": "Concept",
+                    "mentions": len(re.findall(r'\b' + re.escape(concept) + r'\b', text))
+                })
+        
+        # Extract simple relationships between entities
+        # Person-Organization relationships
+        for person in [e for e in entities if e["type"] == "Person"]:
+            for org in [e for e in entities if e["type"] == "Organization"]:
+                # Look for relationship patterns within a window of the text
+                person_name = person["name"]
+                org_name = org["name"]
+                
+                # Simple patterns like "Person works for Organization"
+                works_pattern = f'{re.escape(person_name)}[^.!?]{{0,40}}(?:work|works|working|worked)\\s+(?:for|at|with|in)[^.!?]{{0,20}}{re.escape(org_name)}'
+                works_matches = re.findall(works_pattern, text, re.IGNORECASE)
+                
+                if works_matches:
+                    relationships.append({
+                        "source": person_name,
+                        "target": org_name,
+                        "type": "WORKS_FOR",
+                        "sentence": works_matches[0][:100]
+                    })
+                
+                # "Person founded Organization"
+                founded_pattern = f'{re.escape(person_name)}[^.!?]{{0,40}}(?:found|founded|created|established|started)[^.!?]{{0,20}}{re.escape(org_name)}'
+                founded_matches = re.findall(founded_pattern, text, re.IGNORECASE)
+                
+                if founded_matches:
+                    relationships.append({
+                        "source": person_name,
+                        "target": org_name,
+                        "type": "FOUNDED",
+                        "sentence": founded_matches[0][:100]
+                    })
+        
+        # Person-Person relationships
+        all_persons = [e for e in entities if e["type"] == "Person"]
+        for i, person1 in enumerate(all_persons):
+            for person2 in all_persons[i+1:]:
+                # "Person is related to Person"
+                related_pattern = f'{re.escape(person1["name"])}[^.!?]{{0,30}}(?:and|with)[^.!?]{{0,20}}{re.escape(person2["name"])}'
+                related_matches = re.findall(related_pattern, text, re.IGNORECASE)
+                
+                if related_matches:
+                    relationships.append({
+                        "source": person1["name"],
+                        "target": person2["name"],
+                        "type": "RELATED_TO",
+                        "sentence": related_matches[0][:100]
+                    })
+        
+        # Return extracted entities and relationships
         return {
             "entities": entities,
             "relationships": relationships
         }
 
-# Singleton instance
+# Create a singleton instance
 document_processor = DocumentProcessor()

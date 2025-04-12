@@ -1,4 +1,5 @@
 import axios from 'axios';
+import { GraphData, GraphOverview } from '../types/graph';
 
 // Create axios instance
 const api = axios.create({
@@ -6,6 +7,7 @@ const api = axios.create({
   headers: {
     'Content-Type': 'application/json',
   },
+  withCredentials: true, // Allow cookies for session-based auth
 });
 
 // Add request interceptor to attach JWT token
@@ -19,25 +21,77 @@ api.interceptors.request.use((config) => {
   return Promise.reject(error);
 });
 
+// API response types
+export interface User {
+  id: number;
+  username: string;
+  email: string;
+}
+
+export interface LoginResponse {
+  user: User;
+  token: string;
+  message: string;
+}
+
+export interface FileUploadResponse {
+  message: string;
+  file: {
+    id: number;
+    name: string;
+    size: number;
+  };
+  graph: {
+    nodesCreated: number;
+    relationshipsCreated: number;
+    graphData: GraphData;
+  };
+}
+
+export interface QueryResponse {
+  id: string;
+  query: string;
+  response: string;
+  graphData: GraphData;
+  timestamp: string;
+}
+
+export interface HealthCheckResponse {
+  status: string;
+  neo4j: string;
+  llm: string;
+}
+
+export interface DbConfigResponse {
+  message: string;
+  config: {
+    useInMemory: boolean;
+    connected: boolean;
+  };
+}
+
 // Authentication API
 export const authAPI = {
   register: (username: string, password: string, email: string) => 
-    api.post('/auth/register', { username, password, email }),
+    api.post<LoginResponse>('/register', { username, password, email }),
   
   login: (username: string, password: string) => 
-    api.post('/auth/login', { username, password }),
+    api.post<LoginResponse>('/login', { username, password }),
   
   getCurrentUser: () => 
-    api.get('/auth/user'),
+    api.get<User>('/user'),
+    
+  logout: () => 
+    api.post('/logout'),
 };
 
 // Graph API
 export const graphAPI = {
   getOverview: () => 
-    api.get('/graph/overview'),
+    api.get<GraphOverview>('/graph/overview'),
   
   query: (query: string) => 
-    api.post('/graph/query', { query }),
+    api.post<QueryResponse>('/graph/query', { query }),
 };
 
 // File API
@@ -45,7 +99,7 @@ export const fileAPI = {
   uploadFile: (file: File) => {
     const formData = new FormData();
     formData.append('file', file);
-    return api.post('/upload', formData, {
+    return api.post<FileUploadResponse>('/upload', formData, {
       headers: {
         'Content-Type': 'multipart/form-data',
       },
@@ -59,12 +113,16 @@ export const fileAPI = {
 // History API
 export const historyAPI = {
   getQueryHistory: () => 
-    api.get('/history'),
+    api.get<QueryResponse[]>('/history'),
 };
 
-// Health check
-export const healthAPI = {
-  check: () => api.get('/health'),
+// System API
+export const systemAPI = {
+  health: () => 
+    api.get<HealthCheckResponse>('/health'),
+    
+  setDbConfig: (useInMemory: boolean) => 
+    api.post<DbConfigResponse>('/db-config', { useInMemory }),
 };
 
 export default api;
