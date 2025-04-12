@@ -159,17 +159,34 @@ class Neo4jDatabase:
     def __init__(self):
         """Initialize the Neo4j database connection"""
         # Check if we should use in-memory database
-        use_in_memory = os.environ.get('USE_IN_MEMORY_DB', 'true').lower() == 'true'
+        self.use_in_memory = os.environ.get('USE_IN_MEMORY_DB', 'true').lower() == 'true'
+        self.driver = None
+        self.in_memory = None
         
-        if use_in_memory:
-            logger.info("Using in-memory graph database")
+        # Connect based on the setting
+        self.initialize_connection()
+            
+    def initialize_connection(self):
+        """Initialize or reinitialize the database connection"""
+        # Clean up existing connections if any
+        if self.driver:
+            try:
+                self.driver.close()
+            except Exception:
+                pass
             self.driver = None
+        
+        self.in_memory = None
+        
+        # Use in-memory if explicitly requested
+        if self.use_in_memory:
+            logger.info("Using in-memory graph database (as configured)")
             self.in_memory = InMemoryGraph()
             return
             
+        # Check if Neo4j driver is available
         if neo4j is None:
             logger.warning("Neo4j driver not available, falling back to in-memory database")
-            self.driver = None
             self.in_memory = InMemoryGraph()
             return
             
@@ -179,16 +196,30 @@ class Neo4jDatabase:
             user = os.environ.get('NEO4J_USER', 'neo4j')
             password = os.environ.get('NEO4J_PASSWORD', 'password')
             
+            logger.info(f"Attempting to connect to Neo4j at {uri}")
             self.driver = neo4j.GraphDatabase.driver(uri, auth=(user, password))
-            logger.info(f"Connected to Neo4j at {uri}")
+            
+            # Test the connection
+            with self.driver.session() as session:
+                result = session.run("RETURN 1 AS result").single()
+                if not result or result.get("result") != 1:
+                    raise Exception("Failed to validate Neo4j connection")
+            
+            logger.info(f"Successfully connected to Neo4j at {uri}")
             
             # Initialize schema with constraints
             self._init_schema()
             
-            self.in_memory = None
         except Exception as e:
             logger.error(f"Failed to connect to Neo4j: {e}")
             logger.warning("Falling back to in-memory database")
+            
+            if self.driver:
+                try:
+                    self.driver.close()
+                except Exception:
+                    pass
+                
             self.driver = None
             self.in_memory = InMemoryGraph()
     

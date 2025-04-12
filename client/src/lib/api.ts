@@ -60,6 +60,8 @@ export interface HealthCheckResponse {
   status: string;
   neo4j: string;
   llm: string;
+  db_type: string;
+  openai_configured: boolean;
 }
 
 export interface DbConfigResponse {

@@ -281,13 +281,22 @@ def health_check():
         # Check Neo4j connectivity
         neo4j_status = "connected" if db.verify_connectivity() else "disconnected"
         
+        # Check if we're using in-memory database
+        using_in_memory = db.in_memory is not None
+        db_type = "in-memory" if using_in_memory else "neo4j"
+        
         # Check LLM service availability
         llm_status = "available" if llm_service.is_available() else "unavailable"
+        
+        # Check OpenAI API key configuration
+        openai_key_set = os.environ.get('OPENAI_API_KEY') is not None
         
         return jsonify({
             "status": "ok",
             "neo4j": neo4j_status,
-            "llm": llm_status
+            "llm": llm_status,
+            "db_type": db_type,
+            "openai_configured": openai_key_set
         }), 200
     
     except Exception as e:
@@ -312,13 +321,24 @@ def set_db_config():
         
         # Reinitialize database connection
         global db
-        db = Neo4jDatabase()
+        
+        # Update the setting
+        db.use_in_memory = use_in_memory
+        
+        # Reinitialize the connection
+        db.initialize_connection()
+        
+        # Verify connectivity
+        connected = db.verify_connectivity()
+        
+        # Check if we're actually using in-memory (could be forced due to connectivity issues)
+        actual_in_memory = db.in_memory is not None
         
         return jsonify({
-            "message": f"Database configuration updated. Using {'in-memory' if use_in_memory else 'Neo4j'} database.",
+            "message": f"Database configuration updated. Using {'in-memory' if actual_in_memory else 'Neo4j'} database.",
             "config": {
-                "useInMemory": use_in_memory,
-                "connected": db.verify_connectivity()
+                "useInMemory": actual_in_memory,
+                "connected": connected
             }
         }), 200
     
