@@ -1,209 +1,212 @@
-import { useState } from "react";
-import { useQuery, QueryClient } from "@tanstack/react-query";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useState, useEffect } from "react";
+import { useToast } from "@/hooks/use-toast";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
-import { AlertCircle } from "lucide-react";
+import { UploadCloud, Info, Database, AlertTriangle } from "lucide-react";
+import { graphAPI, QueryResponse, systemAPI } from "@/lib/api";
 import FileUpload from "@/components/FileUpload";
-import GraphVisualization from "@/components/GraphVisualization";
 import QueryInput from "@/components/QueryInput";
 import ResponseDisplay from "@/components/ResponseDisplay";
-import { graphAPI, healthAPI } from "@/lib/api";
-import { GraphData, QueryResponse, HealthStatus } from "@/types";
-
-// Mock data for development
-const MOCK_GRAPH_DATA: GraphData = {
-  nodes: [
-    { id: "1", label: "Person", name: "John Smith", properties: { age: 35, occupation: "Software Engineer" } },
-    { id: "2", label: "Company", name: "Tech Corp", properties: { founded: 2005, location: "San Francisco" } },
-    { id: "3", label: "Project", name: "Knowledge Graph App", properties: { startDate: "2023-01-15", status: "In Progress" } },
-    { id: "4", label: "Skill", name: "Graph Databases", properties: { level: "Expert" } },
-    { id: "5", label: "Person", name: "Jane Doe", properties: { age: 28, occupation: "Data Scientist" } },
-    { id: "6", label: "Technology", name: "Neo4j", properties: { version: "4.4", type: "Graph Database" } }
-  ],
-  links: [
-    { id: "1", source: "1", target: "2", type: "WORKS_AT", properties: { since: 2019, position: "Senior Developer" } },
-    { id: "2", source: "1", target: "3", type: "CONTRIBUTES_TO", properties: { role: "Lead Developer" } },
-    { id: "3", source: "1", target: "4", type: "HAS_SKILL", properties: { years: 5 } },
-    { id: "4", source: "2", target: "3", type: "OWNS", properties: { investment: "$500K" } },
-    { id: "5", source: "5", target: "2", type: "WORKS_AT", properties: { since: 2020, position: "Data Engineer" } },
-    { id: "6", source: "5", target: "3", type: "CONTRIBUTES_TO", properties: { role: "Data Architect" } },
-    { id: "7", source: "3", target: "6", type: "USES", properties: { version: "4.4.0" } }
-  ]
-};
-
-const MOCK_HEALTH_STATUS: HealthStatus = {
-  status: 'ok',
-  neo4j: 'connected',
-  llm: 'available'
-};
-
-const queryClient = new QueryClient();
+import GraphVisualization from "@/components/GraphVisualization";
+import { GraphData, GraphOverview } from "@/types/graph";
 
 export default function Dashboard() {
   const [activeTab, setActiveTab] = useState("query");
+  const [loading, setLoading] = useState(false);
   const [queryResponse, setQueryResponse] = useState<QueryResponse | null>(null);
-  
-  // Fetch graph overview with mock data
-  const { data: graphOverview, isLoading: isGraphLoading, error: graphError } = useQuery({
-    queryKey: ['/api/graph/overview'],
-    staleTime: 30000, // 30 seconds
-    queryFn: () => Promise.resolve({
-      graphData: MOCK_GRAPH_DATA,
-      stats: {
-        nodeCount: MOCK_GRAPH_DATA.nodes.length,
-        relationshipCount: MOCK_GRAPH_DATA.links.length
-      }
-    })
-  });
-  
-  // Health check query with mock data
-  const { data: healthStatus } = useQuery<HealthStatus>({
-    queryKey: ['/api/health'],
-    staleTime: 60000, // 1 minute
-    queryFn: () => Promise.resolve(MOCK_HEALTH_STATUS)
-  });
+  const [graphOverview, setGraphOverview] = useState<GraphOverview | null>(null);
+  const [healthStatus, setHealthStatus] = useState<{ neo4j: string; llm: string } | null>(null);
+  const { toast } = useToast();
 
-  // Handle file upload completion
-  const handleFileUploadComplete = () => {
-    // Invalidate the graph overview query to refresh the data
-    queryClient.invalidateQueries({ queryKey: ['/api/graph/overview'] });
-  };
+  // Load graph overview on mount
+  useEffect(() => {
+    loadGraphOverview();
+    checkHealth();
+  }, []);
 
-  // Handle query submission with mock data
-  const handleQuerySubmit = async (query: string) => {
+  const loadGraphOverview = async () => {
     try {
-      // Create a mock response instead of calling the API
-      const mockResponse: QueryResponse = {
-        id: 1,
-        query: query,
-        response: `# Response to "${query}"\n\nBased on the knowledge graph, here's what I found:\n\n* The query is related to ${MOCK_GRAPH_DATA.nodes.length} entities in the knowledge graph.\n* The most relevant connections are between people and projects.\n\n## Key Insights\n\n* John Smith works at Tech Corp and contributes to the Knowledge Graph App.\n* Jane Doe also works at Tech Corp as a Data Engineer.\n* The Knowledge Graph App uses Neo4j technology.\n* Both team members have complementary skills that help with the project development.`,
+      const response = await graphAPI.getOverview();
+      
+      // Ensure we have a valid structure even if the API returns incomplete data
+      const safeOverview = {
         graphData: {
-          // Include a subset of the mock data to simulate a query-specific result
-          nodes: MOCK_GRAPH_DATA.nodes.slice(0, 4),
-          links: MOCK_GRAPH_DATA.links.slice(0, 3)
+          nodes: [],
+          links: [],
+          ...(response.data?.graphData || {})
+        },
+        stats: {
+          nodeCount: 0,
+          relationshipCount: 0,
+          ...(response.data?.stats || {})
         }
       };
       
-      // Set the response and switch tabs
-      setQueryResponse(mockResponse);
+      setGraphOverview(safeOverview);
+    } catch (error) {
+      console.error("Error loading graph overview:", error);
       
-      // Switch to query tab if not already active
-      setActiveTab("query");
+      // Set a default empty structure on error
+      setGraphOverview({
+        graphData: { nodes: [], links: [] },
+        stats: { nodeCount: 0, relationshipCount: 0 }
+      });
+      
+      toast({
+        title: "Failed to load graph overview",
+        description: "There was an error loading your knowledge graph data.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const checkHealth = async () => {
+    try {
+      const response = await systemAPI.health();
+      setHealthStatus({
+        neo4j: response.data.neo4j,
+        llm: response.data.llm,
+      });
+    } catch (error) {
+      console.error("Health check failed:", error);
+    }
+  };
+
+  const handleQuery = async (query: string) => {
+    setLoading(true);
+    
+    try {
+      const response = await graphAPI.query(query);
+      setQueryResponse(response.data);
+      
+      // Refresh graph overview after query
+      loadGraphOverview();
     } catch (error) {
       console.error("Query error:", error);
+      toast({
+        title: "Query Error",
+        description: "There was an error processing your query. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
     }
+  };
+
+  const handleUploadComplete = () => {
+    // Refresh graph overview when upload completes
+    loadGraphOverview();
+    
+    // Show success message
+    toast({
+      title: "Upload complete",
+      description: "Your document has been processed and added to the knowledge graph.",
+    });
   };
 
   return (
     <div className="container mx-auto p-4 space-y-6">
-      <div className="flex flex-col md:flex-row gap-6">
-        {/* Left column - Stats and health */}
-        <div className="w-full md:w-1/4 space-y-6">
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>Graph Statistics</CardTitle>
-              <CardDescription>Your knowledge graph overview</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {isGraphLoading ? (
-                <p>Loading statistics...</p>
-              ) : graphError ? (
-                <Alert variant="destructive">
-                  <AlertCircle className="h-4 w-4" />
-                  <AlertTitle>Error</AlertTitle>
-                  <AlertDescription>
-                    Failed to load graph statistics
-                  </AlertDescription>
-                </Alert>
-              ) : (
-                <div className="space-y-2">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Nodes:</span>
-                    <span className="font-medium">{graphOverview?.stats.nodeCount || 0}</span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Relationships:</span>
-                    <span className="font-medium">{graphOverview?.stats.relationshipCount || 0}</span>
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+      <h1 className="text-2xl font-bold mb-6">Knowledge Graph Dashboard</h1>
+      
+      {/* System status alerts */}
+      {healthStatus && (
+        <div className="space-y-2">
+          {healthStatus.neo4j !== "connected" && (
+            <Alert variant="warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Database Status</AlertTitle>
+              <AlertDescription>
+                The graph database is not connected. Using in-memory storage instead.
+                Go to Settings to configure your database connection.
+              </AlertDescription>
+            </Alert>
+          )}
           
-          <Card>
-            <CardHeader className="pb-2">
-              <CardTitle>System Status</CardTitle>
-              <CardDescription>Connection status</CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">Database:</span>
-                  {healthStatus?.neo4j === "connected" ? (
-                    <span className="text-green-500 text-sm font-medium flex items-center">
-                      <span className="h-2 w-2 rounded-full bg-green-500 mr-2"></span>
-                      Connected
-                    </span>
-                  ) : (
-                    <span className="text-red-500 text-sm font-medium flex items-center">
-                      <span className="h-2 w-2 rounded-full bg-red-500 mr-2"></span>
-                      Disconnected
-                    </span>
-                  )}
-                </div>
-                
-                <div className="flex justify-between items-center">
-                  <span className="text-muted-foreground">AI Service:</span>
-                  {healthStatus?.llm === "available" ? (
-                    <span className="text-green-500 text-sm font-medium flex items-center">
-                      <span className="h-2 w-2 rounded-full bg-green-500 mr-2"></span>
-                      Available
-                    </span>
-                  ) : (
-                    <span className="text-yellow-500 text-sm font-medium flex items-center">
-                      <span className="h-2 w-2 rounded-full bg-yellow-500 mr-2"></span>
-                      Limited
-                    </span>
-                  )}
+          {healthStatus.llm !== "available" && (
+            <Alert variant="warning">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>LLM Service Status</AlertTitle>
+              <AlertDescription>
+                The language model service is not available. Advanced natural language processing
+                features will be limited. Go to Settings to configure your API key.
+              </AlertDescription>
+            </Alert>
+          )}
+        </div>
+      )}
+      
+      {/* Main content */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        {/* Left sidebar with graph overview */}
+        <div className="lg:col-span-1 space-y-6">
+          <div className="rounded-lg border p-4">
+            <div className="flex items-center gap-2 mb-4">
+              <Database className="h-5 w-5" />
+              <h2 className="font-semibold">Knowledge Graph Overview</h2>
+            </div>
+            
+            <div className="space-y-2">
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Entities</span>
+                <span className="font-medium">{graphOverview?.stats?.nodeCount || 0}</span>
+              </div>
+              <div className="flex justify-between items-center">
+                <span className="text-sm text-muted-foreground">Relationships</span>
+                <span className="font-medium">{graphOverview?.stats?.relationshipCount || 0}</span>
+              </div>
+            </div>
+            
+            {/* Graph preview */}
+            {graphOverview?.graphData?.nodes && graphOverview.graphData.nodes.length > 0 ? (
+              <div className="mt-4 h-[300px] border rounded-md overflow-hidden">
+                <GraphVisualization 
+                  data={graphOverview.graphData}
+                  height={300}
+                  title=""
+                  description=""
+                />
+              </div>
+            ) : (
+              <div className="mt-4 h-[300px] bg-muted/40 rounded-md flex items-center justify-center p-4 text-center text-muted-foreground">
+                <div>
+                  <Info className="h-8 w-8 mx-auto mb-2 opacity-50" />
+                  <p className="text-sm">
+                    Your knowledge graph is empty. Upload documents to populate it.
+                  </p>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+            )}
+          </div>
         </div>
         
-        {/* Right column - Main content */}
-        <div className="w-full md:w-3/4">
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+        {/* Main content area */}
+        <div className="lg:col-span-2 space-y-6">
+          <Tabs 
+            value={activeTab} 
+            onValueChange={setActiveTab} 
+            className="w-full"
+          >
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="query">Query Knowledge</TabsTrigger>
-              <TabsTrigger value="upload">Upload Data</TabsTrigger>
+              <TabsTrigger value="upload" className="flex items-center gap-1">
+                <UploadCloud className="h-4 w-4" />
+                <span>Upload Document</span>
+              </TabsTrigger>
             </TabsList>
             
-            <TabsContent value="query" className="space-y-4 mt-4">
-              <QueryInput onSubmit={handleQuerySubmit} />
+            <TabsContent value="query" className="space-y-6 mt-6">
+              <QueryInput 
+                onSubmit={handleQuery}
+                loading={loading}
+              />
               
               {queryResponse && (
                 <ResponseDisplay response={queryResponse} />
               )}
-              
-              {!queryResponse && graphOverview?.graphData && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Your Knowledge Graph</CardTitle>
-                    <CardDescription>
-                      Visualizing your current knowledge graph
-                    </CardDescription>
-                  </CardHeader>
-                  <CardContent className="h-[500px]">
-                    <GraphVisualization data={graphOverview.graphData as GraphData} />
-                  </CardContent>
-                </Card>
-              )}
             </TabsContent>
             
-            <TabsContent value="upload" className="space-y-4 mt-4">
-              <FileUpload onComplete={handleFileUploadComplete} />
+            <TabsContent value="upload" className="mt-6">
+              <FileUpload onComplete={handleUploadComplete} />
             </TabsContent>
           </Tabs>
         </div>

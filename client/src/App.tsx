@@ -8,16 +8,18 @@ import Login from "@/pages/Login";
 import Register from "@/pages/Register";
 import Dashboard from "@/pages/Dashboard";
 import History from "@/pages/History";
+import Settings from "@/pages/Settings";
 import Layout from "@/components/Layout";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
 
 function Router() {
-  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  // For demo purposes, we'll bypass authentication
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(true);
   const [, setLocation] = useLocation();
 
   useEffect(() => {
-    // Check for token on initial load
+    // In a real app, we'd check for token validity here
     const token = localStorage.getItem('token');
     if (token) {
       setIsAuthenticated(true);
@@ -31,9 +33,14 @@ function Router() {
     setLocation('/login');
   };
 
+  // For development, always render the main app
   return (
     <Switch>
-      <Route path="/" component={Home} />
+      <Route path="/">
+        <Layout onLogout={handleLogout}>
+          <Dashboard />
+        </Layout>
+      </Route>
       <Route path="/login">
         <Login setIsAuthenticated={setIsAuthenticated} />
       </Route>
@@ -41,22 +48,19 @@ function Router() {
         <Register setIsAuthenticated={setIsAuthenticated} />
       </Route>
       <Route path="/dashboard">
-        {isAuthenticated ? (
-          <Layout onLogout={handleLogout}>
-            <Dashboard />
-          </Layout>
-        ) : (
-          <Login setIsAuthenticated={setIsAuthenticated} />
-        )}
+        <Layout onLogout={handleLogout}>
+          <Dashboard />
+        </Layout>
       </Route>
       <Route path="/history">
-        {isAuthenticated ? (
-          <Layout onLogout={handleLogout}>
-            <History />
-          </Layout>
-        ) : (
-          <Login setIsAuthenticated={setIsAuthenticated} />
-        )}
+        <Layout onLogout={handleLogout}>
+          <History />
+        </Layout>
+      </Route>
+      <Route path="/settings">
+        <Layout onLogout={handleLogout}>
+          <Settings />
+        </Layout>
       </Route>
       <Route component={NotFound} />
     </Switch>

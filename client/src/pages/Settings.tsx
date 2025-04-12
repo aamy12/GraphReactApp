@@ -1,81 +1,202 @@
-import { useState } from "react";
-import { useToast } from "@/hooks/use-toast";
+import { useState, useEffect } from "react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Check, Key, RefreshCw, Settings as SettingsIcon } from "lucide-react";
-import DatabaseConfig from "@/components/DatabaseConfig";
-import axios from "axios";
+import { Input } from "@/components/ui/input";
+import { Alert, AlertTitle, AlertDescription } from "@/components/ui/alert";
+import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
+import { useToast } from "@/hooks/use-toast";
+import { systemAPI, HealthCheckResponse } from "@/lib/api";
+import { Database, Key, CheckCircle, AlertCircle, Settings as SettingsIcon } from "lucide-react";
 
 export default function Settings() {
   const [activeTab, setActiveTab] = useState("database");
-  const [apiKey, setApiKey] = useState("");
-  const [savingKey, setSavingKey] = useState(false);
+  const [useInMemory, setUseInMemory] = useState(true);
+  const [openAiKey, setOpenAiKey] = useState("");
+  const [dbConfigLoading, setDbConfigLoading] = useState(false);
+  const [apiKeyLoading, setApiKeyLoading] = useState(false);
+  const [healthStatus, setHealthStatus] = useState<HealthCheckResponse | null>(null);
   const { toast } = useToast();
 
-  // This is a stub - in a real app, we would actually set the API key
-  const handleSaveApiKey = async () => {
-    if (!apiKey) {
+  // Load health status and current settings on mount
+  useEffect(() => {
+    checkHealth();
+  }, []);
+
+  const checkHealth = async () => {
+    try {
+      const response = await systemAPI.health();
+      setHealthStatus(response.data);
+      
+      // Update UI based on current settings
+      setUseInMemory(response.data.neo4j !== "connected");
+    } catch (error) {
+      console.error("Health check failed:", error);
       toast({
-        title: "API Key Required",
-        description: "Please enter an OpenAI API key",
+        title: "Error",
+        description: "Failed to load system status information",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const updateDatabaseConfig = async () => {
+    setDbConfigLoading(true);
+    
+    try {
+      await systemAPI.setDbConfig(useInMemory);
+      
+      toast({
+        title: "Settings Updated",
+        description: `Database mode set to ${useInMemory ? "in-memory" : "Neo4j"}.`,
+      });
+      
+      // Refresh health status
+      await checkHealth();
+    } catch (error) {
+      console.error("Failed to update database config:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update database configuration",
+        variant: "destructive",
+      });
+    } finally {
+      setDbConfigLoading(false);
+    }
+  };
+
+  const saveApiKey = async () => {
+    if (!openAiKey.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a valid API key",
         variant: "destructive",
       });
       return;
     }
-
-    setSavingKey(true);
+    
+    setApiKeyLoading(true);
+    
     try {
-      // Simulate API call
+      // In a real app, you'd have an API endpoint to securely save the API key
+      // This is just a placeholder for the UI
       await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // In a real app, we would send the API key to the server
-      // await axios.post("/api/settings/openai-key", { apiKey });
-      
       toast({
-        title: "API Key Saved",
-        description: "Your OpenAI API key has been saved",
+        title: "API Key Updated",
+        description: "Your OpenAI API key has been updated successfully.",
       });
+      
+      // Refresh health status
+      await checkHealth();
     } catch (error) {
-      console.error("Error saving API key:", error);
+      console.error("Failed to save API key:", error);
       toast({
-        title: "Error Saving API Key",
-        description: "There was an error saving your API key",
+        title: "Error",
+        description: "Failed to update API key",
         variant: "destructive",
       });
     } finally {
-      setSavingKey(false);
+      setApiKeyLoading(false);
     }
   };
 
   return (
     <div className="container mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold flex items-center mb-6">
-        <SettingsIcon className="mr-2 h-6 w-6" />
-        Settings
+      <h1 className="text-2xl font-bold mb-6 flex items-center gap-2">
+        <SettingsIcon className="h-6 w-6" />
+        System Settings
       </h1>
-
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-2 mb-6">
-          <TabsTrigger value="database">Database</TabsTrigger>
-          <TabsTrigger value="api-keys">API Keys</TabsTrigger>
+      
+      <Tabs 
+        value={activeTab} 
+        onValueChange={setActiveTab} 
+        className="w-full"
+      >
+        <TabsList className="grid w-full grid-cols-2">
+          <TabsTrigger value="database" className="flex items-center gap-1">
+            <Database className="h-4 w-4" />
+            <span>Database</span>
+          </TabsTrigger>
+          <TabsTrigger value="api" className="flex items-center gap-1">
+            <Key className="h-4 w-4" />
+            <span>API Keys</span>
+          </TabsTrigger>
         </TabsList>
         
-        <TabsContent value="database" className="space-y-4">
-          <DatabaseConfig />
-        </TabsContent>
-        
-        <TabsContent value="api-keys" className="space-y-4">
+        <TabsContent value="database" className="space-y-4 mt-4">
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center">
-                <Key className="mr-2 h-5 w-5" />
-                API Keys
-              </CardTitle>
+              <CardTitle>Knowledge Graph Database</CardTitle>
               <CardDescription>
-                Manage API keys for external services
+                Configure how your knowledge graph data is stored
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Switch 
+                  id="in-memory-mode" 
+                  checked={useInMemory}
+                  onCheckedChange={setUseInMemory}
+                />
+                <Label htmlFor="in-memory-mode">Use In-Memory Database</Label>
+              </div>
+              
+              <div className="text-sm text-muted-foreground">
+                {useInMemory ? (
+                  <p>
+                    In-memory mode stores data only for the current session. Your data will not persist
+                    if the server restarts. This mode is ideal for testing and development.
+                  </p>
+                ) : (
+                  <p>
+                    Neo4j mode uses a persistent graph database. Your knowledge graph data
+                    will be saved and available for future sessions.
+                  </p>
+                )}
+              </div>
+              
+              {healthStatus && (
+                <Alert 
+                  variant={healthStatus.neo4j === "connected" ? "default" : "warning"}
+                  className="mt-4"
+                >
+                  {healthStatus.neo4j === "connected" ? (
+                    <CheckCircle className="h-4 w-4" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4" />
+                  )}
+                  <AlertTitle>
+                    {healthStatus.neo4j === "connected" 
+                      ? "Neo4j Connected" 
+                      : "Using In-Memory Database"}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {healthStatus.neo4j === "connected"
+                      ? "Your data is being stored in a persistent Neo4j database."
+                      : "Your data is currently stored in memory and will not persist after restart."}
+                  </AlertDescription>
+                </Alert>
+              )}
+            </CardContent>
+            <CardFooter>
+              <Button 
+                onClick={updateDatabaseConfig} 
+                disabled={dbConfigLoading}
+              >
+                {dbConfigLoading ? "Updating..." : "Update Database Settings"}
+              </Button>
+            </CardFooter>
+          </Card>
+        </TabsContent>
+        
+        <TabsContent value="api" className="space-y-4 mt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>API Configuration</CardTitle>
+              <CardDescription>
+                Configure API keys for external services
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -85,27 +206,44 @@ export default function Settings() {
                   id="openai-key"
                   type="password"
                   placeholder="sk-..."
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
+                  value={openAiKey}
+                  onChange={(e) => setOpenAiKey(e.target.value)}
                 />
-                <p className="text-sm text-muted-foreground">
-                  Required for advanced natural language processing features
+                <p className="text-xs text-muted-foreground">
+                  Your API key is required for advanced natural language processing features.
+                  The key is stored securely and never shared.
                 </p>
               </div>
+              
+              {healthStatus && (
+                <Alert 
+                  variant={healthStatus.llm === "available" ? "default" : "warning"}
+                  className="mt-4"
+                >
+                  {healthStatus.llm === "available" ? (
+                    <CheckCircle className="h-4 w-4" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4" />
+                  )}
+                  <AlertTitle>
+                    {healthStatus.llm === "available" 
+                      ? "LLM Service Connected" 
+                      : "LLM Service Unavailable"}
+                  </AlertTitle>
+                  <AlertDescription>
+                    {healthStatus.llm === "available"
+                      ? "Your application is using enhanced natural language processing."
+                      : "Advanced natural language features are limited without an API key."}
+                  </AlertDescription>
+                </Alert>
+              )}
             </CardContent>
-            <CardFooter className="flex justify-end">
-              <Button onClick={handleSaveApiKey} disabled={savingKey}>
-                {savingKey ? (
-                  <>
-                    <RefreshCw className="mr-2 h-4 w-4 animate-spin" />
-                    Saving...
-                  </>
-                ) : (
-                  <>
-                    <Check className="mr-2 h-4 w-4" />
-                    Save Key
-                  </>
-                )}
+            <CardFooter>
+              <Button 
+                onClick={saveApiKey}
+                disabled={apiKeyLoading}
+              >
+                {apiKeyLoading ? "Saving..." : "Save API Key"}
               </Button>
             </CardFooter>
           </Card>

@@ -1,116 +1,101 @@
 import { useState } from "react";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
 import { useToast } from "@/hooks/use-toast";
-import { Search, Book, Lightbulb } from "lucide-react";
+import { Search, Sparkles, Brain } from "lucide-react";
 
 interface QueryInputProps {
   onSubmit: (query: string) => void;
+  loading?: boolean;
+  defaultQuery?: string;
 }
 
-export default function QueryInput({ onSubmit }: QueryInputProps) {
-  const [query, setQuery] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
+export default function QueryInput({ onSubmit, loading = false, defaultQuery = "" }: QueryInputProps) {
+  const [query, setQuery] = useState(defaultQuery);
   const { toast } = useToast();
-
-  const handleSubmit = async () => {
+  
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    
     if (!query.trim()) {
       toast({
-        title: "Empty query",
+        title: "Query required",
         description: "Please enter a question to search your knowledge graph",
-        variant: "destructive",
+        variant: "destructive"
       });
       return;
     }
-
-    setIsLoading(true);
-    try {
-      await onSubmit(query);
-      // Don't reset the query text after submission
-    } catch (error) {
-      toast({
-        title: "Query failed",
-        description: "An error occurred while processing your query",
-        variant: "destructive",
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    
+    onSubmit(query);
   };
-
+  
   const exampleQueries = [
-    "What are the main concepts in my knowledge graph?",
-    "How are entities related to each other?",
-    "What information do I have about [specific entity]?",
+    "Who is the CEO of Microsoft?",
+    "What companies are located in San Francisco?",
+    "What is the relationship between Tesla and SpaceX?",
+    "When was the last board meeting?",
+    "What are the key points in the quarterly report?"
   ];
-
+  
   const handleExampleClick = (example: string) => {
     setQuery(example);
   };
 
   return (
-    <Card>
+    <Card className="w-full">
       <CardHeader>
-        <CardTitle>Ask a Question</CardTitle>
+        <CardTitle className="flex items-center">
+          <Brain className="mr-2 h-5 w-5" />
+          Query Knowledge Graph
+        </CardTitle>
         <CardDescription>
-          Query your knowledge graph using natural language
+          Ask a question about your uploaded documents
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <div className="space-y-4">
+        <form onSubmit={handleSubmit} className="space-y-4">
           <Textarea
-            placeholder="Enter your question here..."
-            className="min-h-[100px] resize-none"
+            placeholder="What would you like to know about your documents?"
             value={query}
             onChange={(e) => setQuery(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && e.ctrlKey) {
-                handleSubmit();
-              }
-            }}
+            className="min-h-[80px] resize-none"
           />
-          
-          <div>
-            <p className="text-sm text-muted-foreground mb-2 flex items-center">
-              <Lightbulb className="h-3 w-3 mr-1" />
-              Example queries:
-            </p>
-            <div className="flex flex-wrap gap-2">
-              {exampleQueries.map((example, index) => (
-                <Button
-                  key={index}
-                  variant="outline"
-                  size="sm"
-                  onClick={() => handleExampleClick(example)}
-                  className="text-xs"
-                >
-                  {example}
-                </Button>
-              ))}
-            </div>
+          <div className="flex items-center justify-end">
+            <Button type="submit" disabled={loading}>
+              {loading ? (
+                <>
+                  <Sparkles className="mr-2 h-4 w-4 animate-pulse" />
+                  Processing...
+                </>
+              ) : (
+                <>
+                  <Search className="mr-2 h-4 w-4" />
+                  Search Knowledge
+                </>
+              )}
+            </Button>
+          </div>
+        </form>
+        
+        <div className="mt-6">
+          <h3 className="text-sm font-medium mb-2">Example questions:</h3>
+          <div className="flex flex-wrap gap-2">
+            {exampleQueries.map((example) => (
+              <Button
+                key={example}
+                variant="outline"
+                size="sm"
+                onClick={() => handleExampleClick(example)}
+                className="text-xs h-auto py-1"
+              >
+                {example}
+              </Button>
+            ))}
           </div>
         </div>
       </CardContent>
-      <CardFooter className="justify-between">
-        <p className="text-xs text-muted-foreground">
-          <Book className="h-3 w-3 inline mr-1" />
-          Tip: Press Ctrl+Enter to submit
-        </p>
-        <Button onClick={handleSubmit} disabled={isLoading}>
-          {isLoading ? (
-            <>
-              <div className="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></div>
-              Processing...
-            </>
-          ) : (
-            <>
-              <Search className="mr-2 h-4 w-4" />
-              Search
-            </>
-          )}
-        </Button>
-      </CardFooter>
     </Card>
   );
 }

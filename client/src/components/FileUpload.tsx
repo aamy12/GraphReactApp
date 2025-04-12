@@ -1,13 +1,12 @@
 import { useState, useRef } from "react";
-import { useMutation } from "@tanstack/react-query";
-import { useToast } from "@/hooks/use-toast";
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { useToast } from "@/hooks/use-toast";
 import { fileAPI } from "@/lib/api";
-import { FileUploadResponse } from "@/types";
-import { Upload, FileText, Check, X } from "lucide-react";
-import GraphVisualization from "@/components/GraphVisualization";
+import { Upload, AlertTriangle, FileText, FileImage, FileArchive, Check } from "lucide-react";
 
 interface FileUploadProps {
   onComplete: () => void;
@@ -16,236 +15,229 @@ interface FileUploadProps {
 export default function FileUpload({ onComplete }: FileUploadProps) {
   const [file, setFile] = useState<File | null>(null);
   const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadResult, setUploadResult] = useState<FileUploadResponse | null>(null);
+  const [progress, setProgress] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
-  // File upload mutation with mock implementation for demo
-  const uploadMutation = useMutation({
-    mutationFn: (file: File) => {
-      setUploading(true);
-      // Simulate progress since XMLHttpRequest is not being used
-      const progressInterval = setInterval(() => {
-        setUploadProgress((prev) => {
-          if (prev >= 95) {
-            clearInterval(progressInterval);
-            return 95;
-          }
-          return prev + 5;
-        });
-      }, 100);
-      
-      // Return a promise that resolves with mock data after a delay
-      return new Promise<FileUploadResponse>((resolve) => {
-        setTimeout(() => {
-          clearInterval(progressInterval);
-          setUploadProgress(100);
-          
-          // Create mock response data
-          const mockResponse: FileUploadResponse = {
-            message: "File processed successfully",
-            file: {
-              id: 1,
-              name: file.name,
-              size: file.size
-            },
-            graph: {
-              nodesCreated: 12,
-              relationshipsCreated: 18,
-              graphData: {
-                nodes: [
-                  { id: "101", label: "Concept", name: "Knowledge Graphs", properties: { domain: "Computer Science" } },
-                  { id: "102", label: "Person", name: "Alan Turing", properties: { born: 1912, field: "Computer Science" } },
-                  { id: "103", label: "Algorithm", name: "Graph Traversal", properties: { complexity: "O(n+e)" } },
-                  { id: "104", label: "Technology", name: "Natural Language Processing", properties: { status: "Active" } },
-                  { id: "105", label: "Tool", name: "Graph Databases", properties: { example: "Neo4j" } },
-                  { id: "106", label: "Application", name: "Information Retrieval", properties: { utility: "High" } }
-                ],
-                links: [
-                  { id: "201", source: "101", target: "103", type: "USES", properties: { context: "Data Organization" } },
-                  { id: "202", source: "102", target: "101", type: "CONTRIBUTED_TO", properties: { year: 1936 } },
-                  { id: "203", source: "104", target: "106", type: "ENABLES", properties: {} },
-                  { id: "204", source: "105", target: "101", type: "IMPLEMENTS", properties: { efficiency: "High" } },
-                  { id: "205", source: "106", target: "105", type: "UTILIZES", properties: { purpose: "Data Storage" } }
-                ]
-              }
-            }
-          };
-          
-          resolve(mockResponse);
-          setUploading(false);
-        }, 2000); // Simulate 2-second upload
-      });
-    },
-    onSuccess: (data) => {
-      setUploadResult(data);
-      toast({
-        title: "File uploaded successfully",
-        description: `${data.file.name} has been processed.`,
-      });
-      onComplete();
-    },
-    onError: (error: any) => {
-      toast({
-        title: "Upload failed",
-        description: error.response?.data?.message || "An error occurred during upload",
-        variant: "destructive",
-      });
-    },
-  });
-
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      setFile(e.target.files[0]);
-      setUploadResult(null); // Clear previous results
+      const selectedFile = e.target.files[0];
+      setFile(selectedFile);
+      setError(null);
     }
   };
 
-  const handleUpload = () => {
-    if (file) {
-      setUploadProgress(0);
-      uploadMutation.mutate(file);
-    }
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
   };
 
-  const handleDragOver = (e: React.DragEvent<HTMLDivElement>) => {
+  const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
-  };
-
-  const handleDrop = (e: React.DragEvent<HTMLDivElement>) => {
-    e.preventDefault();
+    e.stopPropagation();
+    
     if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      setFile(e.dataTransfer.files[0]);
-      setUploadResult(null); // Clear previous results
+      const droppedFile = e.dataTransfer.files[0];
+      setFile(droppedFile);
+      setError(null);
     }
   };
 
-  const resetUpload = () => {
-    setFile(null);
-    setUploadResult(null);
-    setUploadProgress(0);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+  const validateFile = (file: File): boolean => {
+    const allowedTypes = [
+      'application/pdf', 
+      'image/jpeg', 
+      'image/png', 
+      'image/tiff',
+      'text/plain',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      'application/msword'
+    ];
+    
+    const maxSize = 15 * 1024 * 1024; // 15MB
+    
+    if (!allowedTypes.includes(file.type)) {
+      setError("Unsupported file type. Please upload PDF, image, or document files.");
+      return false;
+    }
+    
+    if (file.size > maxSize) {
+      setError("File is too large. Maximum file size is 15MB.");
+      return false;
+    }
+    
+    return true;
+  };
+
+  const uploadFile = async () => {
+    if (!file) {
+      setError("Please select a file to upload.");
+      return;
+    }
+    
+    if (!validateFile(file)) {
+      return;
+    }
+    
+    setUploading(true);
+    setProgress(10);
+    
+    try {
+      // Simulate progress updates (in a real app, you might use upload progress events)
+      const progressInterval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 90) {
+            clearInterval(progressInterval);
+            return 90;
+          }
+          return prev + 10;
+        });
+      }, 300);
+      
+      const response = await fileAPI.uploadFile(file);
+      
+      clearInterval(progressInterval);
+      setProgress(100);
+      
+      toast({
+        title: "Upload successful",
+        description: `${file.name} has been successfully processed.`,
+      });
+      
+      // Reset the form
+      setFile(null);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
+      
+      // Call the completion callback
+      onComplete();
+    } catch (error) {
+      console.error("Upload error:", error);
+      setError("An error occurred while uploading the file. Please try again.");
+      
+      toast({
+        title: "Upload failed",
+        description: "There was an error processing your document.",
+        variant: "destructive",
+      });
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const getFileIcon = (file: File) => {
+    if (file.type.includes('pdf')) {
+      return <FileText className="h-10 w-10 text-red-500" />;
+    } else if (file.type.includes('image')) {
+      return <FileImage className="h-10 w-10 text-blue-500" />;
+    } else if (file.type.includes('word')) {
+      return <FileText className="h-10 w-10 text-blue-700" />;
+    } else {
+      return <FileArchive className="h-10 w-10 text-amber-500" />;
     }
   };
 
   return (
-    <div className="space-y-6">
-      <Card>
-        <CardHeader>
-          <CardTitle>Upload Data</CardTitle>
-          <CardDescription>
-            Upload files to build your knowledge graph
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div
-            className={`border-2 border-dashed rounded-lg p-6 text-center ${
-              file ? "border-primary bg-primary/5" : "border-input"
-            }`}
-            onDragOver={handleDragOver}
-            onDrop={handleDrop}
-          >
-            {!file ? (
-              <div className="py-8">
-                <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-2" />
-                <p className="text-lg font-medium">Drag & drop file here</p>
-                <p className="text-muted-foreground mb-4">
-                  or click to browse files
-                </p>
-                <Button
-                  onClick={() => fileInputRef.current?.click()}
-                  variant="outline"
-                >
-                  Browse Files
-                </Button>
-                <input
-                  type="file"
-                  ref={fileInputRef}
-                  className="hidden"
-                  onChange={handleFileChange}
-                  accept=".txt,.pdf,.png,.jpg,.jpeg,.json,.md,.csv,.xml,.tiff,.bmp"
-                />
-                <p className="text-xs text-muted-foreground mt-4">
-                  Supported files: TXT, PDF, Images (PNG, JPG, JPEG), JSON, MD, CSV
-                </p>
+    <Card className="w-full">
+      <CardHeader>
+        <CardTitle className="flex items-center">
+          <Upload className="mr-2 h-5 w-5" />
+          Upload Document
+        </CardTitle>
+        <CardDescription>
+          Upload PDF, image, or text files to add to your knowledge graph
+        </CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        <div
+          className={`border-2 border-dashed rounded-lg p-6 text-center ${
+            file ? "border-primary bg-primary/5" : "border-muted-foreground/25"
+          }`}
+          onDragOver={handleDragOver}
+          onDrop={handleDrop}
+        >
+          {file ? (
+            <div className="flex flex-col items-center justify-center space-y-2">
+              {getFileIcon(file)}
+              <div className="font-medium">{file.name}</div>
+              <div className="text-xs text-muted-foreground">
+                {(file.size / 1024 / 1024).toFixed(2)} MB
               </div>
-            ) : (
-              <div className="py-4">
-                <div className="flex items-center justify-center gap-2 mb-4">
-                  <FileText className="h-8 w-8 text-primary" />
-                  <div className="text-left">
-                    <p className="font-medium">{file.name}</p>
-                    <p className="text-sm text-muted-foreground">
-                      {(file.size / 1024).toFixed(2)} KB
-                    </p>
-                  </div>
+              {progress > 0 && progress < 100 ? (
+                <div className="w-full max-w-xs">
+                  <Progress value={progress} className="h-2" />
                 </div>
-                
-                {uploading && (
-                  <div className="space-y-2">
-                    <Progress value={uploadProgress} />
-                    <p className="text-sm text-muted-foreground">
-                      {uploadProgress === 100 ? "Processing..." : "Uploading..."}
-                    </p>
-                  </div>
-                )}
-                
-                {!uploading && !uploadResult && (
-                  <div className="flex gap-2 justify-center">
-                    <Button onClick={handleUpload}>Upload File</Button>
-                    <Button variant="outline" onClick={resetUpload}>
-                      Cancel
-                    </Button>
-                  </div>
-                )}
-                
-                {uploadResult && (
-                  <div className="flex gap-2 justify-center">
-                    <Button variant="outline" onClick={resetUpload}>
-                      Upload Another File
-                    </Button>
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        </CardContent>
-      </Card>
-      
-      {/* Display upload results */}
-      {uploadResult && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Upload Results</CardTitle>
-            <CardDescription>
-              The following knowledge was extracted from your file
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="mb-4 p-4 rounded-md bg-muted">
-              <div className="flex items-center justify-between mb-2">
-                <span className="text-sm font-medium">Entities Created:</span>
-                <span className="text-sm bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                  {uploadResult.graph.nodesCreated}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Relationships Created:</span>
-                <span className="text-sm bg-primary/20 text-primary px-2 py-0.5 rounded-full">
-                  {uploadResult.graph.relationshipsCreated}
-                </span>
-              </div>
+              ) : uploading && progress === 100 ? (
+                <div className="flex items-center text-sm text-primary">
+                  <Check className="mr-1 h-4 w-4" />
+                  Processing document...
+                </div>
+              ) : null}
             </div>
-            
-            {/* Graph visualization */}
-            <div className="h-[400px]">
-              <GraphVisualization data={uploadResult.graph.graphData} />
+          ) : (
+            <div className="flex flex-col items-center justify-center space-y-2">
+              <Upload className="h-10 w-10 text-muted-foreground/50" />
+              <p className="text-sm font-medium">
+                Drag and drop your file here or click to browse
+              </p>
+              <p className="text-xs text-muted-foreground">
+                Supported formats: PDF, JPG, PNG, TIFF, TXT, DOC, DOCX
+              </p>
             </div>
-          </CardContent>
-        </Card>
-      )}
-    </div>
+          )}
+          <Input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            onChange={handleFileChange}
+            accept=".pdf,.jpg,.jpeg,.png,.tiff,.txt,.doc,.docx"
+            disabled={uploading}
+          />
+        </div>
+        
+        {error && (
+          <Alert variant="destructive">
+            <AlertTriangle className="h-4 w-4" />
+            <AlertDescription>{error}</AlertDescription>
+          </Alert>
+        )}
+        
+        <div className="text-xs text-muted-foreground">
+          <p>Your documents will be processed to extract entities and relationships.</p>
+          <p>Personal or sensitive information will remain private to your account.</p>
+        </div>
+      </CardContent>
+      <CardFooter className="flex justify-between">
+        <Button
+          variant="outline"
+          onClick={() => {
+            setFile(null);
+            if (fileInputRef.current) {
+              fileInputRef.current.value = "";
+            }
+          }}
+          disabled={!file || uploading}
+        >
+          Clear
+        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="secondary"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            Select File
+          </Button>
+          <Button
+            onClick={uploadFile}
+            disabled={!file || uploading}
+          >
+            {uploading ? "Processing..." : "Upload"}
+          </Button>
+        </div>
+      </CardFooter>
+    </Card>
   );
 }
