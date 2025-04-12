@@ -168,7 +168,7 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
                   accept=".txt,.json,.md"
                 />
                 <p className="text-xs text-muted-foreground mt-4">
-                  Supported files: TXT, JSON, MD
+                  Supported files: TXT, PDF, Images (PNG, JPG, JPEG), JSON, MD, CSV
                 </p>
               </div>
             ) : (

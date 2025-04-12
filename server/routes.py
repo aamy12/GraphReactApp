@@ -1,314 +1,331 @@
-from flask import Blueprint, request, jsonify, current_app
-from flask_jwt_extended import jwt_required, get_jwt_identity
-import json
-import logging
-from graph_db import neo4j_db
-from llm_service import llm_service
-from auth import register_user, login_user, get_current_user
-from models import User, Query, File
-from utils import save_uploaded_file, parse_file_content, format_graph_for_visualization
 import os
+import json
+import uuid
+import logging
+from typing import Dict, Any, List, Optional, Union
+from pathlib import Path
+from datetime import datetime
 
-logger = logging.getLogger(__name__)
+from flask import Blueprint, request, jsonify, current_app, g, session, Response
+from flask_cors import cross_origin
+from werkzeug.utils import secure_filename
 
-# Create blueprint
+from .auth import register_user, login_user, get_current_user
+from .graph_db import Neo4jDatabase
+from .llm_service import llm_service
+from .knowledge_graph_service import knowledge_graph_service
+from .document_processor import document_processor
+
+# Create the blueprint
 api = Blueprint('api', __name__)
 
-# Auth routes
-@api.route('/auth/register', methods=['POST'])
+# Initialize database
+db = Neo4jDatabase()
+
+# Configure logging
+logger = logging.getLogger(__name__)
+
+# Create upload directory if it doesn't exist
+UPLOAD_FOLDER = os.path.join(os.getcwd(), 'uploads')
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+# Helper functions
+def get_user_id():
+    """Get the current user ID from the session"""
+    if 'user_id' in session:
+        return session['user_id']
+    return None
+
+def allowed_file(filename):
+    """Check if the file extension is allowed"""
+    allowed_extensions = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'csv', 'json', 'md', 'xml', 'tiff', 'bmp'}
+    return '.' in filename and filename.rsplit('.', 1)[1].lower() in allowed_extensions
+
+# Authentication routes
+@api.route('/register', methods=['POST'])
 def register():
     """Register a new user"""
-    data = request.json
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
+        
+        username = data.get('username')
+        password = data.get('password')
+        email = data.get('email')
+        
+        if not username or not password or not email:
+            return jsonify({"error": "Missing required fields"}), 400
+        
+        user = register_user(username, password, email)
+        
+        if user:
+            # Create session
+            session['user_id'] = user.id
+            session['username'] = user.username
+            
+            return jsonify({
+                "message": "User registered successfully",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email
+                },
+                "token": "session_token"  # In a real app, use JWT or similar
+            }), 201
+        else:
+            return jsonify({"error": "Registration failed"}), 400
     
-    if not data:
-        return jsonify({"message": "No input data provided"}), 400
-    
-    # Extract and validate required fields
-    username = data.get('username')
-    password = data.get('password')
-    email = data.get('email')
-    
-    if not username or not password or not email:
-        return jsonify({"message": "Missing required fields"}), 400
-    
-    return register_user(username, password, email)
+    except Exception as e:
+        logger.error(f"Registration error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
-@api.route('/auth/login', methods=['POST'])
+@api.route('/login', methods=['POST'])
 def login():
     """Login a user"""
-    data = request.json
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
+        
+        username = data.get('username')
+        password = data.get('password')
+        
+        if not username or not password:
+            return jsonify({"error": "Missing username or password"}), 400
+        
+        user = login_user(username, password)
+        
+        if user:
+            # Create session
+            session['user_id'] = user.id
+            session['username'] = user.username
+            
+            return jsonify({
+                "message": "Login successful",
+                "user": {
+                    "id": user.id,
+                    "username": user.username,
+                    "email": user.email
+                },
+                "token": "session_token"  # In a real app, use JWT or similar
+            }), 200
+        else:
+            return jsonify({"error": "Invalid username or password"}), 401
     
-    if not data:
-        return jsonify({"message": "No input data provided"}), 400
-    
-    # Extract and validate required fields
-    username = data.get('username')
-    password = data.get('password')
-    
-    if not username or not password:
-        return jsonify({"message": "Missing required fields"}), 400
-    
-    return login_user(username, password)
+    except Exception as e:
+        logger.error(f"Login error: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
-@api.route('/auth/user', methods=['GET'])
-@jwt_required()
+@api.route('/user', methods=['GET'])
 def user():
     """Get current user"""
-    return get_current_user()
+    user = get_current_user()
+    
+    if user:
+        return jsonify({
+            "id": user.id,
+            "username": user.username,
+            "email": user.email
+        }), 200
+    else:
+        return jsonify({"error": "Not authenticated"}), 401
 
-# Graph operations
+@api.route('/logout', methods=['POST'])
+def logout():
+    """Logout the current user"""
+    session.clear()
+    return jsonify({"message": "Logged out successfully"}), 200
+
+# Graph routes
 @api.route('/graph/overview', methods=['GET'])
-@jwt_required()
 def get_graph_overview():
     """Get an overview of the user's knowledge graph"""
-    user_id = get_jwt_identity()
+    user_id = get_user_id()
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
     
     try:
-        # Get nodes and relationships
-        nodes = neo4j_db.get_nodes_by_user(user_id)
-        relationships = neo4j_db.get_relationships_by_user(user_id)
+        # Get graph overview for the user
+        overview = db.get_graph_overview(user_id)
         
-        # Format for visualization
-        graph_data = {
-            "nodes": nodes,
-            "relationships": relationships
-        }
-        
-        vis_data = format_graph_for_visualization(graph_data)
-        
-        return jsonify({
-            "graphData": vis_data,
-            "stats": {
-                "nodeCount": len(nodes),
-                "relationshipCount": len(relationships)
-            }
-        }), 200
-        
+        return jsonify(overview.dict()), 200
+    
     except Exception as e:
-        logger.error(f"Error getting graph overview: {e}")
-        return jsonify({"message": f"Error retrieving graph data: {str(e)}"}), 500
+        logger.error(f"Error getting graph overview: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @api.route('/graph/query', methods=['POST'])
-@jwt_required()
 def query_graph():
     """Query the knowledge graph with natural language"""
-    user_id = get_jwt_identity()
-    data = request.json
-    
-    if not data or 'query' not in data:
-        return jsonify({"message": "No query provided"}), 400
-    
-    query_text = data['query']
+    user_id = get_user_id()
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
     
     try:
-        # First get the user's knowledge graph
-        nodes = neo4j_db.get_nodes_by_user(user_id)
-        relationships = neo4j_db.get_relationships_by_user(user_id)
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
         
-        subgraph = {
-            "nodes": nodes,
-            "relationships": relationships
-        }
+        query_text = data.get('query')
+        if not query_text:
+            return jsonify({"error": "Query is required"}), 400
         
-        # Create a query record
-        query_record = Query.create(query_text, user_id)
+        # Process the query with the knowledge graph service
+        result = knowledge_graph_service.query_knowledge_graph(query_text, user_id)
         
-        # Process the query with LLM
-        llm_response = llm_service.generate_query(query_text, subgraph)
+        if "error" in result:
+            return jsonify({"error": result["error"]}), 500
         
-        # Format graph data for visualization
-        vis_data = format_graph_for_visualization(subgraph)
-        
-        # Update the query record with the response
-        query_record.update_response(llm_response['answer'], vis_data)
+        # Store the query in history (this would normally be done in a database)
+        # In a real app, you would save this to the database
         
         return jsonify({
-            "id": query_record.id,
+            "id": uuid.uuid4().hex,
             "query": query_text,
-            "response": llm_response['answer'],
-            "graphData": vis_data
+            "response": result["response"],
+            "graphData": result["graphData"].dict() if hasattr(result["graphData"], "dict") else result["graphData"],
+            "timestamp": datetime.now().isoformat()
         }), 200
-        
+    
     except Exception as e:
-        logger.error(f"Error processing query: {e}")
-        return jsonify({"message": f"Error processing query: {str(e)}"}), 500
+        logger.error(f"Error processing query: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @api.route('/history', methods=['GET'])
-@jwt_required()
 def get_query_history():
     """Get the user's query history"""
-    user_id = get_jwt_identity()
+    user_id = get_user_id()
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
     
-    try:
-        queries = Query.get_by_user_id(user_id)
-        
-        result = []
-        for query in queries:
-            result.append({
-                "id": query.id,
-                "query": query.text,
-                "response": query.response,
-                "graphData": query.response_graph,
-                # Add timestamp if needed
-            })
-        
-        return jsonify(result), 200
-        
-    except Exception as e:
-        logger.error(f"Error getting query history: {e}")
-        return jsonify({"message": f"Error retrieving history: {str(e)}"}), 500
+    # In a real app, you would fetch this from the database
+    # For now, we'll return an empty list
+    return jsonify([]), 200
 
-# File upload and processing
+# File upload routes
 @api.route('/upload', methods=['POST'])
-@jwt_required()
 def upload_file():
     """Upload a file to be processed into the knowledge graph"""
-    user_id = get_jwt_identity()
-    
-    if 'file' not in request.files:
-        return jsonify({"message": "No file part"}), 400
-    
-    file = request.files['file']
-    
-    if file.filename == '':
-        return jsonify({"message": "No selected file"}), 400
+    user_id = get_user_id()
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
     
     try:
+        # Check if file was uploaded
+        if 'file' not in request.files:
+            return jsonify({"error": "No file part"}), 400
+        
+        file = request.files['file']
+        
+        if file.filename == '':
+            return jsonify({"error": "No file selected"}), 400
+        
+        if not file or not allowed_file(file.filename):
+            return jsonify({"error": "File type not allowed"}), 400
+        
         # Save the file
-        file_info = save_uploaded_file(file)
+        filename = secure_filename(file.filename)
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        unique_filename = f"{timestamp}_{filename}"
+        file_path = os.path.join(UPLOAD_FOLDER, unique_filename)
+        file.save(file_path)
         
-        if not file_info:
-            return jsonify({"message": "Failed to save file"}), 500
+        # Get file info
+        file_size = os.path.getsize(file_path)
+        file_type = file.content_type
         
-        # Create a file record
-        file_record = File.create(
-            file_info['filename'],
-            file_info['original_name'],
-            file_info['mime_type'],
-            file_info['size'],
-            user_id
+        # Process the file and create a knowledge graph
+        result = knowledge_graph_service.create_document_graph(
+            file_path, user_id, filename, file_type
         )
         
-        # Parse the file's content
-        file_content = parse_file_content(file_info['path'])
+        if "error" in result:
+            return jsonify({"error": result["error"]}), 500
         
-        # Process file content with LLM to extract entities and relationships
-        graph_data = llm_service.parse_document_to_graph(file_content)
-        
-        # Add extracted entities and relationships to the graph database
-        nodes_created = []
-        rels_created = []
-        
-        # Add entities
-        for entity in graph_data.get('entities', []):
-            node = neo4j_db.create_node(
-                entity.get('type', 'Entity'),
-                {
-                    'name': entity.get('name', 'Unknown'),
-                    'source': file_info['original_name'],
-                    **entity.get('properties', {})
-                },
-                user_id
-            )
-            if node:
-                nodes_created.append(node)
-        
-        # Add relationships
-        for rel in graph_data.get('relationships', []):
-            # Find the corresponding nodes
-            source_node = next(
-                (n for n in nodes_created if n['properties'].get('name') == rel.get('source')),
-                None
-            )
-            target_node = next(
-                (n for n in nodes_created if n['properties'].get('name') == rel.get('target')),
-                None
-            )
-            
-            if source_node and target_node:
-                relationship = neo4j_db.create_relationship(
-                    source_node['id'],
-                    target_node['id'],
-                    rel.get('type', 'RELATED_TO'),
-                    {
-                        'source': file_info['original_name'],
-                        **rel.get('properties', {})
-                    },
-                    user_id
-                )
-                if relationship:
-                    rels_created.append(relationship)
-        
-        # Mark the file as processed
-        file_record.mark_as_processed()
-        
-        # Format the graph for visualization
-        graph_data = {
-            "nodes": nodes_created,
-            "relationships": rels_created
-        }
-        vis_data = format_graph_for_visualization(graph_data)
-        
+        # Return processing results
         return jsonify({
             "message": "File processed successfully",
             "file": {
-                "id": file_record.id,
-                "name": file_info['original_name'],
-                "size": file_info['size']
+                "id": 1,  # This would normally come from the database
+                "name": filename,
+                "size": file_size
             },
             "graph": {
-                "nodesCreated": len(nodes_created),
-                "relationshipsCreated": len(rels_created),
-                "graphData": vis_data
+                "nodesCreated": result.get("document", {}).get("nodeCount", 0),
+                "relationshipsCreated": result.get("document", {}).get("relationshipCount", 0),
+                "graphData": result.get("graphData", {})
             }
-        }), 200
-        
+        }), 201
+    
     except Exception as e:
-        logger.error(f"Error processing uploaded file: {e}")
-        return jsonify({"message": f"Error processing file: {str(e)}"}), 500
+        logger.error(f"Error uploading file: {str(e)}")
+        return jsonify({"error": str(e)}), 500
 
 @api.route('/files', methods=['GET'])
-@jwt_required()
 def get_user_files():
     """Get all files uploaded by the user"""
-    user_id = get_jwt_identity()
+    user_id = get_user_id()
+    if not user_id:
+        return jsonify({"error": "Not authenticated"}), 401
     
-    try:
-        files = File.get_by_user_id(user_id)
-        
-        result = []
-        for file in files:
-            result.append({
-                "id": file.id,
-                "filename": file.original_name,
-                "mimeType": file.mime_type,
-                "size": file.size,
-                "processed": file.processed
-            })
-        
-        return jsonify(result), 200
-        
-    except Exception as e:
-        logger.error(f"Error getting user files: {e}")
-        return jsonify({"message": f"Error retrieving files: {str(e)}"}), 500
+    # In a real app, you would fetch this from the database
+    # For now, we'll return an empty list
+    return jsonify([]), 200
 
-# Health check
+# System status route
 @api.route('/health', methods=['GET'])
 def health_check():
     """Health check endpoint"""
     try:
-        # Check Neo4j connection
-        neo4j_status = neo4j_db.verify_connectivity()
+        # Check Neo4j connectivity
+        neo4j_status = "connected" if db.verify_connectivity() else "disconnected"
+        
+        # Check LLM service availability
+        llm_status = "available" if llm_service.is_available() else "unavailable"
         
         return jsonify({
-            "status": "ok" if neo4j_status else "error",
-            "neo4j": "connected" if neo4j_status else "disconnected",
-            "llm": "available" if llm_service.model else "unavailable"
-        }), 200 if neo4j_status else 500
-        
+            "status": "ok",
+            "neo4j": neo4j_status,
+            "llm": llm_status
+        }), 200
+    
     except Exception as e:
-        logger.error(f"Health check failed: {e}")
+        logger.error(f"Health check error: {str(e)}")
         return jsonify({
             "status": "error",
             "message": str(e)
         }), 500
+
+@api.route('/db-config', methods=['POST'])
+def set_db_config():
+    """Set database configuration"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
+        
+        use_in_memory = data.get('useInMemory', False)
+        
+        # Update environment variable
+        os.environ['USE_IN_MEMORY_DB'] = str(use_in_memory).lower()
+        
+        # Reinitialize database connection
+        global db
+        db = Neo4jDatabase()
+        
+        return jsonify({
+            "message": f"Database configuration updated. Using {'in-memory' if use_in_memory else 'Neo4j'} database.",
+            "config": {
+                "useInMemory": use_in_memory,
+                "connected": db.verify_connectivity()
+            }
+        }), 200
+    
+    except Exception as e:
+        logger.error(f"Error setting DB config: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
+# Register the blueprint with the Flask app
+def register_routes(app):
+    app.register_blueprint(api, url_prefix='/api')

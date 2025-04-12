@@ -1,133 +1,300 @@
 import os
 import logging
-from typing import Dict, List, Any, Optional
-import openai
-from config import Config
+from typing import Dict, List, Any, Optional, Union
+import json
+
+from langchain_openai import ChatOpenAI
+from langchain.prompts import ChatPromptTemplate, HumanMessagePromptTemplate
+from langchain.schema.messages import SystemMessage
+from langchain.chains import LLMChain
+
+from .graph_db import GraphData, Node, Relationship
 
 logger = logging.getLogger(__name__)
 
-# Configure OpenAI API key
-openai.api_key = Config.OPENAI_API_KEY
-
 class LLMService:
     def __init__(self):
-        self.model = "gpt-3.5-turbo"
-        if not openai.api_key:
-            logger.warning("OpenAI API key not set, LLM functionality will be limited")
+        """Initialize the LLM service"""
+        # Check if API key is available
+        self.api_key = os.getenv("OPENAI_API_KEY")
+        self.model = None
+        
+        if self.api_key:
+            try:
+                self.model = ChatOpenAI(
+                    temperature=0.2,
+                    api_key=self.api_key,
+                    model="gpt-3.5-turbo",
+                )
+            except Exception as e:
+                logger.error(f"Error initializing ChatOpenAI: {e}")
+        else:
+            logger.warning("No OpenAI API key found. LLM service will not be available.")
+
+    def is_available(self) -> bool:
+        """Check if the LLM service is available"""
+        return self.model is not None
     
     def parse_document_to_graph(self, text: str) -> Dict[str, List[Dict[str, Any]]]:
         """
         Parse a document and extract entities and relationships to create a knowledge graph
+        
+        Args:
+            text: The document text to parse
+            
+        Returns:
+            Dict with "entities" and "relationships" lists
         """
-        if not openai.api_key:
-            raise ValueError("OpenAI API key not set")
+        if not self.model:
+            # Return a basic implementation if no LLM available
+            from .document_processor import document_processor
+            return document_processor.extract_entities_and_relationships(text)
+        
+        # Define the prompt for entity and relationship extraction
+        system_prompt = """
+        You are an expert at extracting structured information from text. Your task is to identify key entities and their relationships from the provided text.
+
+        For each entity, extract:
+        1. The entity name
+        2. The entity type (e.g., Person, Organization, Concept, Location, etc.)
+        3. Any relevant attributes mentioned in the text
+
+        For relationships, extract:
+        1. The source entity
+        2. The target entity
+        3. The relationship type (e.g., WORKS_FOR, CREATED, LOCATED_IN)
+        4. Any attributes of the relationship
+
+        Provide the output as a JSON object with two keys:
+        - "entities": a list of entity objects
+        - "relationships": a list of relationship objects
+
+        Entity object format:
+        {
+            "name": "entity name",
+            "type": "entity type",
+            "attributes": {
+                "attribute1": "value1",
+                "attribute2": "value2"
+            }
+        }
+
+        Relationship object format:
+        {
+            "source": "source entity name",
+            "target": "target entity name",
+            "type": "relationship type",
+            "attributes": {
+                "attribute1": "value1"
+            }
+        }
+        """
+        
+        human_prompt = """
+        Extract entities and relationships from the following text:
+        
+        {text}
+        
+        Remember to output valid JSON with "entities" and "relationships" keys.
+        """
+        
+        prompt = ChatPromptTemplate.from_messages([
+            SystemMessage(content=system_prompt),
+            HumanMessagePromptTemplate.from_template(human_prompt)
+        ])
+        
+        # Create a chain
+        chain = LLMChain(llm=self.model, prompt=prompt)
         
         try:
-            response = openai.ChatCompletion.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a knowledge graph creation assistant. Extract entities and relationships from the text. Format your response as a JSON with 'entities' and 'relationships' arrays."},
-                    {"role": "user", "content": f"Extract entities and relationships from the following text to create a knowledge graph:\n\n{text}\n\nRespond with JSON only."}
-                ],
-                temperature=0.2,
-                max_tokens=1000
-            )
+            # Run the chain
+            result = chain.invoke({"text": text[:4000]})  # Limit to first 4000 chars for token limits
             
-            content = response.choices[0].message.content
+            # Parse the JSON response
+            response_text = result.get("text", "")
             
-            # Try to extract JSON from the content
-            import json
-            import re
+            # Extract JSON from the response (it might contain markdown formatting)
+            json_str = response_text.strip()
+            if "```json" in json_str:
+                json_str = json_str.split("```json")[1].split("```")[0].strip()
+            elif "```" in json_str:
+                json_str = json_str.split("```")[1].strip()
             
-            # Look for JSON pattern in the response
-            json_pattern = r'```json\s*([\s\S]*?)\s*```|(\{[\s\S]*\})'
-            match = re.search(json_pattern, content)
+            parsed_data = json.loads(json_str)
             
-            if match:
-                json_str = match.group(1) or match.group(2)
-                graph_data = json.loads(json_str)
-            else:
-                # Try direct parsing if no JSON code block is found
-                graph_data = json.loads(content)
-            
-            # Ensure the expected structure
-            if 'entities' not in graph_data or 'relationships' not in graph_data:
-                raise ValueError("LLM response missing entities or relationships")
+            # Make sure the expected keys are present
+            if "entities" not in parsed_data:
+                parsed_data["entities"] = []
+            if "relationships" not in parsed_data:
+                parsed_data["relationships"] = []
                 
-            return graph_data
-            
+            return parsed_data
+        
         except Exception as e:
-            logger.error(f"Error parsing document with LLM: {e}")
-            # Return a simplified structure with the error
-            return {
-                "entities": [],
-                "relationships": [],
-                "error": str(e)
-            }
-    
-    def generate_query(self, user_query: str, subgraph: Dict) -> Dict:
+            logger.error(f"Error in parse_document_to_graph: {e}")
+            # Fall back to basic implementation
+            from .document_processor import document_processor
+            return document_processor.extract_entities_and_relationships(text)
+
+    def generate_query(self, user_query: str, subgraph: GraphData) -> Dict[str, str]:
         """
         Process a natural language query against the knowledge graph
+        
+        Args:
+            user_query: The user's natural language query
+            subgraph: The relevant subgraph data
+            
+        Returns:
+            Dict with the generated response
         """
-        if not openai.api_key:
-            raise ValueError("OpenAI API key not set")
+        if not self.model:
+            # Generate a basic response if no LLM available
+            return self._generate_basic_response(user_query, subgraph)
         
-        # Simplify the subgraph for context
+        # Prepare the context from the subgraph
         context = self._prepare_context(subgraph)
-            
+        
+        # Define the prompt
+        system_prompt = """
+        You are a knowledge graph expert assistant. You help users find information in their knowledge graph.
+        
+        You'll be given:
+        1. A query from the user
+        2. A subgraph of nodes and relationships that might be relevant to the query
+        
+        Your task is to analyze the subgraph and provide a clear, informative response that answers the user's query.
+        
+        When responding:
+        - Focus only on the information available in the provided subgraph
+        - Explain the connections between entities when relevant
+        - If the subgraph doesn't contain enough information to answer the query, acknowledge this limitation
+        - Format your response to be readable with headers, bullet points, etc.
+        - Keep your response concise and focused on the query
+        """
+        
+        human_prompt = """
+        User Query: {query}
+        
+        Relevant Knowledge Graph Subgraph:
+        {context}
+        
+        Please provide a clear, informative answer based on this subgraph.
+        """
+        
+        prompt = ChatPromptTemplate.from_messages([
+            SystemMessage(content=system_prompt),
+            HumanMessagePromptTemplate.from_template(human_prompt)
+        ])
+        
+        # Create a chain
+        chain = LLMChain(llm=self.model, prompt=prompt)
+        
         try:
-            response = openai.ChatCompletion.create(
-                model=self.model,
-                messages=[
-                    {"role": "system", "content": "You are a knowledge graph query assistant. Generate detailed answers based on the knowledge graph."},
-                    {"role": "user", "content": f"Knowledge Graph Context:\n{context}\n\nUser Query: {user_query}\n\nProvide a detailed answer based on the given context. Include your reasoning process."}
-                ],
-                temperature=0.3,
-                max_tokens=1000
-            )
+            # Run the chain
+            result = chain.invoke({"query": user_query, "context": context})
+            response_text = result.get("text", "")
             
             return {
-                "answer": response.choices[0].message.content,
-                "query": user_query
+                "query": user_query,
+                "response": response_text,
+                "source": "llm"
             }
-            
+        
         except Exception as e:
-            logger.error(f"Error processing query with LLM: {e}")
-            return {
-                "answer": f"Error processing your query: {str(e)}",
-                "query": user_query
-            }
+            logger.error(f"Error in generate_query: {e}")
+            # Fall back to basic implementation
+            return self._generate_basic_response(user_query, subgraph)
     
-    def _prepare_context(self, subgraph: Dict) -> str:
+    def _prepare_context(self, subgraph: GraphData) -> str:
         """Prepare a text representation of the knowledge graph for context"""
-        nodes = subgraph.get("nodes", [])
-        relationships = subgraph.get("relationships", [])
+        if not subgraph or not subgraph.nodes:
+            return "No relevant information found in the knowledge graph."
         
-        context = "Knowledge Graph:\n\n"
+        context = "Nodes (Entities):\n"
+        for i, node in enumerate(subgraph.nodes):
+            props_str = ", ".join([f"{k}: {v}" for k, v in node.properties.items() 
+                                  if k not in ["created_by", "created_at"] and v])
+            context += f"{i+1}. {node.label}: {node.name}"
+            if props_str:
+                context += f" ({props_str})"
+            context += "\n"
         
-        # Add nodes information
-        context += "Entities:\n"
-        for i, node in enumerate(nodes):
-            labels = ", ".join(node.get("labels", []))
-            props = ", ".join([f"{k}: {v}" for k, v in node.get("properties", {}).items() if k != "user_id"])
-            context += f"{i+1}. {labels} ({props})\n"
-        
-        # Add relationships information
-        context += "\nRelationships:\n"
-        for i, rel in enumerate(relationships):
-            # Find source and target node names
-            source_node = next((n for n in nodes if n.get("id") == rel.get("start_node_id")), None)
-            target_node = next((n for n in nodes if n.get("id") == rel.get("end_node_id")), None)
-            
-            source_name = source_node.get("properties", {}).get("name", f"Node {rel.get('start_node_id')}")
-            target_name = target_node.get("properties", {}).get("name", f"Node {rel.get('end_node_id')}")
-            
-            rel_type = rel.get("type", "RELATED")
-            props = ", ".join([f"{k}: {v}" for k, v in rel.get("properties", {}).items() if k != "user_id"])
-            
-            context += f"{i+1}. {source_name} --[{rel_type}]--> {target_name} ({props})\n"
+        if subgraph.links:
+            context += "\nRelationships:\n"
+            for i, rel in enumerate(subgraph.links):
+                # Find source and target node names
+                source_name = "Unknown"
+                target_name = "Unknown"
+                
+                for node in subgraph.nodes:
+                    if node.id == rel.source:
+                        source_name = node.name
+                    if node.id == rel.target:
+                        target_name = node.name
+                
+                props_str = ", ".join([f"{k}: {v}" for k, v in rel.properties.items() 
+                                     if k not in ["created_by", "created_at"] and v])
+                
+                context += f"{i+1}. {source_name} --[{rel.type}]--> {target_name}"
+                if props_str:
+                    context += f" ({props_str})"
+                context += "\n"
         
         return context
+    
+    def _generate_basic_response(self, user_query: str, subgraph: GraphData) -> Dict[str, str]:
+        """Generate a basic response without using an LLM"""
+        if not subgraph or not subgraph.nodes:
+            return {
+                "query": user_query,
+                "response": "I couldn't find any relevant information in your knowledge graph.",
+                "source": "basic"
+            }
+        
+        # Count entity types
+        entity_types = {}
+        for node in subgraph.nodes:
+            if node.label not in entity_types:
+                entity_types[node.label] = []
+            entity_types[node.label].append(node.name)
+        
+        # Count relationship types
+        rel_types = {}
+        for rel in subgraph.links:
+            if rel.type not in rel_types:
+                rel_types[rel.type] = 0
+            rel_types[rel.type] += 1
+        
+        # Build a basic response
+        response = f"# Query Results\n\n"
+        response += f"I found {len(subgraph.nodes)} entities and {len(subgraph.links)} relationships that might be relevant to your query.\n\n"
+        
+        # Add entity summary
+        response += "## Entities Found\n\n"
+        for entity_type, entities in entity_types.items():
+            response += f"* **{entity_type}** ({len(entities)}): "
+            if len(entities) <= 5:
+                response += ", ".join(entities)
+            else:
+                response += ", ".join(entities[:5]) + f", and {len(entities) - 5} more"
+            response += "\n"
+        
+        # Add relationship summary
+        if rel_types:
+            response += "\n## Relationships\n\n"
+            for rel_type, count in rel_types.items():
+                response += f"* **{rel_type}**: {count} instances\n"
+        
+        # Add a note about the query
+        response += f"\n## About Your Query\n\n"
+        response += f"Your query was: \"{user_query}\"\n\n"
+        response += "To get more specific results, try including entity names in your query."
+        
+        return {
+            "query": user_query,
+            "response": response,
+            "source": "basic"
+        }
 
-# Initialize the LLM service
+# Create a singleton instance
 llm_service = LLMService()
