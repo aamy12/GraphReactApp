@@ -1,12 +1,15 @@
 import os
 import re
 import json
+import csv
 import logging
 import tempfile
 from typing import Dict, List, Any, Optional, Tuple
 import uuid
 from pathlib import Path
 import base64
+import xml.etree.ElementTree as ET
+from io import StringIO
 
 # PDF processing
 try:
@@ -85,8 +88,16 @@ class DocumentProcessor:
                 file_type = 'application/pdf'
             elif extension in ['jpg', 'jpeg', 'png', 'gif', 'bmp', 'tiff']:
                 file_type = f'image/{extension}'
-            elif extension in ['txt', 'md', 'csv', 'json', 'xml']:
+            elif extension in ['txt', 'md']:
                 file_type = f'text/{extension}'
+            elif extension in ['csv', 'tsv']:
+                file_type = 'text/csv'
+            elif extension in ['json']:
+                file_type = 'application/json'
+            elif extension in ['xml']:
+                file_type = 'application/xml'
+            elif extension in ['xls', 'xlsx']:
+                file_type = 'application/excel'
         
         # Process based on file type
         try:

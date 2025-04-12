@@ -46,19 +46,39 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
 
   const validateFile = (file: File): boolean => {
     const allowedTypes = [
-      'application/pdf', 
-      'image/jpeg', 
-      'image/png', 
-      'image/tiff',
-      'text/plain',
+      // Documents
+      'application/pdf',
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
-      'application/msword'
+      'application/msword',
+      'text/plain',
+      
+      // Images
+      'image/jpeg',
+      'image/png',
+      'image/tiff',
+      
+      // Data formats
+      'application/json',
+      'application/ld+json',
+      'text/csv',
+      'application/vnd.ms-excel',
+      'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+      'text/tab-separated-values',
+      'application/xml',
+      'text/xml'
     ];
+    
+    // Check file extension for common formats where MIME might not be reliable
+    const fileName = file.name.toLowerCase();
+    const validExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.txt', '.doc', 
+                            '.docx', '.json', '.csv', '.xls', '.xlsx', '.tsv', '.xml'];
+    
+    const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
     
     const maxSize = 15 * 1024 * 1024; // 15MB
     
-    if (!allowedTypes.includes(file.type)) {
-      setError("Unsupported file type. Please upload PDF, image, or document files.");
+    if (!allowedTypes.includes(file.type) && !hasValidExtension) {
+      setError("Unsupported file type. Please upload PDF, image, document, or data files (JSON, CSV, etc.).");
       return false;
     }
     
@@ -128,12 +148,37 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
   };
 
   const getFileIcon = (file: File) => {
+    const fileName = file.name.toLowerCase();
+    
+    // Check by MIME type first
     if (file.type.includes('pdf')) {
       return <FileText className="h-10 w-10 text-red-500" />;
     } else if (file.type.includes('image')) {
       return <FileImage className="h-10 w-10 text-blue-500" />;
-    } else if (file.type.includes('word')) {
+    } else if (file.type.includes('word') || file.type.includes('document')) {
       return <FileText className="h-10 w-10 text-blue-700" />;
+    } else if (file.type.includes('json') || file.type.includes('csv') || 
+               file.type.includes('excel') || file.type.includes('spreadsheet') ||
+               file.type.includes('xml')) {
+      return <FileText className="h-10 w-10 text-green-600" />;
+    }
+    
+    // Fallback to extension check
+    if (fileName.endsWith('.pdf')) {
+      return <FileText className="h-10 w-10 text-red-500" />;
+    } else if (fileName.endsWith('.jpg') || fileName.endsWith('.jpeg') || 
+               fileName.endsWith('.png') || fileName.endsWith('.tiff')) {
+      return <FileImage className="h-10 w-10 text-blue-500" />;
+    } else if (fileName.endsWith('.doc') || fileName.endsWith('.docx') || 
+               fileName.endsWith('.txt')) {
+      return <FileText className="h-10 w-10 text-blue-700" />;
+    } else if (fileName.endsWith('.json')) {
+      return <FileText className="h-10 w-10 text-purple-600" />;
+    } else if (fileName.endsWith('.csv') || fileName.endsWith('.xls') || 
+               fileName.endsWith('.xlsx') || fileName.endsWith('.tsv')) {
+      return <FileText className="h-10 w-10 text-green-600" />;
+    } else if (fileName.endsWith('.xml')) {
+      return <FileText className="h-10 w-10 text-amber-600" />;
     } else {
       return <FileArchive className="h-10 w-10 text-amber-500" />;
     }
@@ -147,7 +192,7 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
           Upload Document
         </CardTitle>
         <CardDescription>
-          Upload PDF, image, or text files to add to your knowledge graph
+          Upload PDF, image, text, JSON, CSV, Excel, or XML files to add to your knowledge graph
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -183,7 +228,7 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
                 Drag and drop your file here or click to browse
               </p>
               <p className="text-xs text-muted-foreground">
-                Supported formats: PDF, JPG, PNG, TIFF, TXT, DOC, DOCX
+                Supported formats: PDF, JPG, PNG, TXT, DOC, CSV, JSON, XLS, XLSX, XML
               </p>
             </div>
           )}
@@ -192,7 +237,7 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
             type="file"
             className="hidden"
             onChange={handleFileChange}
-            accept=".pdf,.jpg,.jpeg,.png,.tiff,.txt,.doc,.docx"
+            accept=".pdf,.jpg,.jpeg,.png,.tiff,.txt,.doc,.docx,.json,.csv,.xls,.xlsx,.xml,.tsv"
             disabled={uploading}
           />
         </div>
