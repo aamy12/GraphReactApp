@@ -30,7 +30,8 @@ export default function Settings() {
       setHealthStatus(response.data);
       
       // Update UI based on current settings
-      setUseInMemory(response.data.neo4j !== "connected");
+      // Check if we're using in-memory database based on db_type
+      setUseInMemory(response.data.db_type === "in-memory");
     } catch (error) {
       console.error("Health check failed:", error);
       toast({
@@ -158,23 +159,27 @@ export default function Settings() {
               
               {healthStatus && (
                 <Alert 
-                  variant={healthStatus.neo4j === "connected" ? "default" : "warning"}
+                  variant={healthStatus.db_type === "neo4j" && healthStatus.neo4j === "connected" ? "default" : "warning"}
                   className="mt-4"
                 >
-                  {healthStatus.neo4j === "connected" ? (
+                  {healthStatus.db_type === "neo4j" && healthStatus.neo4j === "connected" ? (
                     <CheckCircle className="h-4 w-4" />
                   ) : (
                     <AlertCircle className="h-4 w-4" />
                   )}
                   <AlertTitle>
-                    {healthStatus.neo4j === "connected" 
+                    {healthStatus.db_type === "neo4j" && healthStatus.neo4j === "connected" 
                       ? "Neo4j Connected" 
-                      : "Using In-Memory Database"}
+                      : healthStatus.db_type === "neo4j"
+                        ? "Neo4j Connection Failed"
+                        : "Using In-Memory Database"}
                   </AlertTitle>
                   <AlertDescription>
-                    {healthStatus.neo4j === "connected"
+                    {healthStatus.db_type === "neo4j" && healthStatus.neo4j === "connected"
                       ? "Your data is being stored in a persistent Neo4j database."
-                      : "Your data is currently stored in memory and will not persist after restart."}
+                      : healthStatus.db_type === "neo4j" 
+                        ? "You've selected Neo4j database but the connection failed. Check your configuration or switch to in-memory mode."
+                        : "Your data is currently stored in memory and will not persist after restart."}
                   </AlertDescription>
                 </Alert>
               )}
@@ -216,23 +221,25 @@ export default function Settings() {
               
               {healthStatus && (
                 <Alert 
-                  variant={healthStatus.llm === "available" ? "default" : "warning"}
+                  variant={healthStatus.openai_configured ? "default" : "warning"}
                   className="mt-4"
                 >
-                  {healthStatus.llm === "available" ? (
+                  {healthStatus.openai_configured ? (
                     <CheckCircle className="h-4 w-4" />
                   ) : (
                     <AlertCircle className="h-4 w-4" />
                   )}
                   <AlertTitle>
-                    {healthStatus.llm === "available" 
-                      ? "LLM Service Connected" 
-                      : "LLM Service Unavailable"}
+                    {healthStatus.openai_configured 
+                      ? "OpenAI API Key Configured" 
+                      : "OpenAI API Key Not Configured"}
                   </AlertTitle>
                   <AlertDescription>
-                    {healthStatus.llm === "available"
-                      ? "Your application is using enhanced natural language processing."
-                      : "Advanced natural language features are limited without an API key."}
+                    {healthStatus.openai_configured
+                      ? healthStatus.llm === "available"
+                        ? "Your application is using enhanced natural language processing."
+                        : "API key is set but the LLM service is not working properly."
+                      : "Advanced natural language features require an OpenAI API key."}
                   </AlertDescription>
                 </Alert>
               )}
