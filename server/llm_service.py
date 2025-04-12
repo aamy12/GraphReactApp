@@ -21,13 +21,17 @@ class LLMService:
         
         if self.api_key:
             try:
+                # The newest OpenAI model is "gpt-4o" which was released May 13, 2024.
+                # Do not change this unless explicitly requested by the user
                 self.model = ChatOpenAI(
                     temperature=0.2,
                     api_key=self.api_key,
-                    model="gpt-3.5-turbo",
+                    model="gpt-4o",
                 )
+                logger.info("Successfully initialized OpenAI model")
             except Exception as e:
                 logger.error(f"Error initializing ChatOpenAI: {e}")
+                self.model = None
         else:
             logger.warning("No OpenAI API key found. LLM service will not be available.")
 
@@ -98,29 +102,41 @@ class LLMService:
         Remember to output valid JSON with "entities" and "relationships" keys.
         """
         
-        prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content=system_prompt),
-            HumanMessagePromptTemplate.from_template(human_prompt)
-        ])
-        
-        # Create a chain
-        chain = LLMChain(llm=self.model, prompt=prompt)
-        
         try:
+            # Configure the model for JSON output
+            json_model = ChatOpenAI(
+                temperature=0.1,
+                api_key=self.api_key,
+                model="gpt-4o",
+                response_format={"type": "json_object"}
+            )
+            
+            prompt = ChatPromptTemplate.from_messages([
+                SystemMessage(content=system_prompt),
+                HumanMessagePromptTemplate.from_template(human_prompt)
+            ])
+            
+            # Create a chain
+            chain = LLMChain(llm=json_model, prompt=prompt)
+            
             # Run the chain
             result = chain.invoke({"text": text[:4000]})  # Limit to first 4000 chars for token limits
             
             # Parse the JSON response
             response_text = result.get("text", "")
             
-            # Extract JSON from the response (it might contain markdown formatting)
-            json_str = response_text.strip()
-            if "```json" in json_str:
-                json_str = json_str.split("```json")[1].split("```")[0].strip()
-            elif "```" in json_str:
-                json_str = json_str.split("```")[1].strip()
-            
-            parsed_data = json.loads(json_str)
+            # Try to parse the JSON directly
+            try:
+                parsed_data = json.loads(response_text)
+            except json.JSONDecodeError:
+                # Extract JSON from the response (it might contain markdown formatting)
+                json_str = response_text.strip()
+                if "```json" in json_str:
+                    json_str = json_str.split("```json")[1].split("```")[0].strip()
+                elif "```" in json_str:
+                    json_str = json_str.split("```")[1].strip()
+                
+                parsed_data = json.loads(json_str)
             
             # Make sure the expected keys are present
             if "entities" not in parsed_data:
@@ -168,7 +184,7 @@ class LLMService:
         - Focus only on the information available in the provided subgraph
         - Explain the connections between entities when relevant
         - If the subgraph doesn't contain enough information to answer the query, acknowledge this limitation
-        - Format your response to be readable with headers, bullet points, etc.
+        - Format your response to be readable with markdown (headers, bullet points, etc.)
         - Keep your response concise and focused on the query
         """
         
@@ -181,24 +197,30 @@ class LLMService:
         Please provide a clear, informative answer based on this subgraph.
         """
         
-        prompt = ChatPromptTemplate.from_messages([
-            SystemMessage(content=system_prompt),
-            HumanMessagePromptTemplate.from_template(human_prompt)
-        ])
-        
-        # Create a chain
-        chain = LLMChain(llm=self.model, prompt=prompt)
-        
         try:
+            prompt = ChatPromptTemplate.from_messages([
+                SystemMessage(content=system_prompt),
+                HumanMessagePromptTemplate.from_template(human_prompt)
+            ])
+            
+            # Use the regular model for this response as we want formatted text, not JSON
+            # Create a chain
+            chain = LLMChain(llm=self.model, prompt=prompt)
+            
             # Run the chain
             result = chain.invoke({"query": user_query, "context": context})
             response_text = result.get("text", "")
             
-            return {
-                "query": user_query,
-                "response": response_text,
-                "source": "llm"
-            }
+            if response_text:
+                return {
+                    "query": user_query,
+                    "response": response_text,
+                    "source": "llm"
+                }
+            else:
+                # If no text response, try with the basic response
+                logger.warning("Empty response from LLM, falling back to basic implementation")
+                return self._generate_basic_response(user_query, subgraph)
         
         except Exception as e:
             logger.error(f"Error in generate_query: {e}")

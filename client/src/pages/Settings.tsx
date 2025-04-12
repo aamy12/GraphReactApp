@@ -79,9 +79,8 @@ export default function Settings() {
     setApiKeyLoading(true);
     
     try {
-      // In a real app, you'd have an API endpoint to securely save the API key
-      // This is just a placeholder for the UI
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      // Save the API key using the new endpoint
+      const response = await systemAPI.setApiKey(openAiKey);
       
       toast({
         title: "API Key Updated",

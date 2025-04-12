@@ -326,6 +326,38 @@ def set_db_config():
         logger.error(f"Error setting DB config: {str(e)}")
         return jsonify({"error": str(e)}), 500
 
+@api.route('/api-config', methods=['POST'])
+def set_api_config():
+    """Set API configuration like OpenAI key"""
+    try:
+        data = request.get_json()
+        if not data:
+            return jsonify({"error": "Invalid request data"}), 400
+        
+        api_key = data.get('openaiApiKey')
+        
+        if api_key:
+            # Update environment variable
+            os.environ['OPENAI_API_KEY'] = api_key
+            
+            # Reinitialize the LLM service
+            global llm_service
+            from .llm_service import LLMService
+            llm_service = LLMService()
+            
+            return jsonify({
+                "message": "API key updated successfully",
+                "config": {
+                    "llm_available": llm_service.is_available()
+                }
+            }), 200
+        else:
+            return jsonify({"error": "API key is required"}), 400
+    
+    except Exception as e:
+        logger.error(f"Error setting API config: {str(e)}")
+        return jsonify({"error": str(e)}), 500
+
 # Register the blueprint with the Flask app
 def register_routes(app):
     app.register_blueprint(api, url_prefix='/api')

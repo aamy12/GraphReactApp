@@ -123,6 +123,9 @@ export const systemAPI = {
     
   setDbConfig: (useInMemory: boolean) => 
     api.post<DbConfigResponse>('/db-config', { useInMemory }),
+    
+  setApiKey: (openaiApiKey: string) => 
+    api.post<{message: string, config: {llm_available: boolean}}>('/api-config', { openaiApiKey }),
 };
 
 export default api;
