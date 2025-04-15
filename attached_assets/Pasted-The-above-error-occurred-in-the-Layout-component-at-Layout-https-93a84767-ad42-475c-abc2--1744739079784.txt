@@ -1,0 +1,25 @@
+The above error occurred in the <Layout> component:
+
+    at Layout (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/src/components/Layout.tsx:25:34)
+    at Route (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=adbffedd:323:16)
+    at Switch (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=adbffedd:379:17)
+    at Router (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/src/App.tsx?v=YM5PzQO63qR_wDKmqMmCZ:35:49)
+    at QueryClientProvider (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=adbffedd:2805:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+
+at Layout (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/src/components/Layout.tsx:25:34)
+at Route (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=adbffedd:323:16)
+at Switch (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=adbffedd:379:17)
+at Router (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/src/App.tsx?v=YM5PzQO63qR_wDKmqMmCZ:35:49)
+at QueryClientProvider (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=adbffedd:2805:3)
+at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+at t.value (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:17465)
+at new t (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:12630)
+at t.value (https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:32766)
+at https://93a84767-ad42-475c-abc2-6e15ca3d2e34-00-3obod42sz0rm9.picard.replit.dev/__replco/static/devtools/eruda/3.2.3/eruda.js:2:34400
