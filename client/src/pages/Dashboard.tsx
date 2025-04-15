@@ -114,10 +114,6 @@ export default function Dashboard() {
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" size="sm" className="text-xs">
-            <History className="h-3 w-3 mr-1" />
-            View History
-          </Button>
-          <Button variant="outline" size="sm" className="text-xs">
             <BarChart className="h-3 w-3 mr-1" />
             Analytics
           </Button>
