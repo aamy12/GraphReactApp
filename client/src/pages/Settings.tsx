@@ -46,15 +46,23 @@ export default function Settings() {
     setDbConfigLoading(true);
     
     try {
-      await systemAPI.setDbConfig(useInMemory);
+      const response = await systemAPI.setDbConfig(useInMemory);
       
-      toast({
-        title: "Settings Updated",
-        description: `Database mode set to ${useInMemory ? "in-memory" : "Neo4j"}.`,
-      });
-      
-      // Refresh health status
-      await checkHealth();
+      if (response.data.config.connected) {
+        toast({
+          title: "Settings Updated",
+          description: `Database mode set to ${useInMemory ? "in-memory" : "Neo4j"}.`,
+        });
+        
+        // Force reload to apply new database configuration
+        window.location.reload();
+      } else {
+        toast({
+          title: "Error",
+          description: "Failed to connect to database",
+          variant: "destructive",
+        });
+      }
     } catch (error) {
       console.error("Failed to update database config:", error);
       toast({
