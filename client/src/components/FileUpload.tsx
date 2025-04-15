@@ -13,17 +13,18 @@ interface FileUploadProps {
 }
 
 export default function FileUpload({ onComplete }: FileUploadProps) {
-  const [file, setFile] = useState<File | null>(null);
+  const [files, setFiles] = useState<File[]>([]);
   const [uploading, setUploading] = useState(false);
-  const [progress, setProgress] = useState(0);
+  const [currentProgress, setCurrentProgress] = useState(0);
+  const [currentFile, setCurrentFile] = useState<string>("");
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      const selectedFile = e.target.files[0];
-      setFile(selectedFile);
+    if (e.target.files) {
+      const selectedFiles = Array.from(e.target.files);
+      setFiles(prev => [...prev, ...selectedFiles]);
       setError(null);
     }
   };
@@ -37,11 +38,15 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
     e.preventDefault();
     e.stopPropagation();
     
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      const droppedFile = e.dataTransfer.files[0];
-      setFile(droppedFile);
+    if (e.dataTransfer.files) {
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      setFiles(prev => [...prev, ...droppedFiles]);
       setError(null);
     }
+  };
+
+  const removeFile = (index: number) => {
+    setFiles(prev => prev.filter((_, i) => i !== index));
   };
 
   const validateFile = (file: File): boolean => {
@@ -90,43 +95,51 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
     return true;
   };
 
-  const uploadFile = async () => {
-    if (!file) {
-      setError("Please select a file to upload.");
-      return;
-    }
-    
-    if (!validateFile(file)) {
+  const uploadFiles = async () => {
+    if (files.length === 0) {
+      setError("Please select files to upload.");
       return;
     }
     
     setUploading(true);
-    setProgress(10);
     
     try {
-      // Simulate progress updates (in a real app, you might use upload progress events)
-      const progressInterval = setInterval(() => {
-        setProgress((prev) => {
-          if (prev >= 90) {
-            clearInterval(progressInterval);
-            return 90;
-          }
-          return prev + 10;
+      for (let i = 0; i < files.length; i++) {
+        const file = files[i];
+        
+        if (!validateFile(file)) {
+          continue;
+        }
+        
+        setCurrentFile(file.name);
+        setCurrentProgress(0);
+        
+        // Simulate progress updates for each file
+        const progressInterval = setInterval(() => {
+          setCurrentProgress((prev) => {
+            if (prev >= 90) {
+              clearInterval(progressInterval);
+              return 90;
+            }
+            return prev + 10;
+          });
+        }, 300);
+        
+        const response = await fileAPI.uploadFile(file);
+        
+        clearInterval(progressInterval);
+        setCurrentProgress(100);
+        
+        toast({
+          title: "Upload successful",
+          description: `${file.name} has been successfully processed.`,
         });
-      }, 300);
-      
-      const response = await fileAPI.uploadFile(file);
-      
-      clearInterval(progressInterval);
-      setProgress(100);
-      
-      toast({
-        title: "Upload successful",
-        description: `${file.name} has been successfully processed.`,
-      });
+      }
       
       // Reset the form
-      setFile(null);
+      setFiles([]);
+      setCurrentFile("");
+      setCurrentProgress(0);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
@@ -237,23 +250,35 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
           onDragOver={handleDragOver}
           onDrop={handleDrop}
         >
-          {file ? (
-            <div className="flex flex-col items-center justify-center space-y-2">
-              {getFileIcon(file)}
-              <div className="font-medium">{file.name}</div>
-              <div className="text-xs text-muted-foreground">
-                {(file.size / 1024 / 1024).toFixed(2)} MB
-              </div>
-              {progress > 0 && progress < 100 ? (
-                <div className="w-full max-w-xs">
-                  <Progress value={progress} className="h-2" />
+          {files.length > 0 ? (
+            <div className="flex flex-col items-center justify-center space-y-4 w-full">
+              {files.map((file, index) => (
+                <div key={index} className="flex items-center justify-between w-full max-w-md bg-background/50 p-2 rounded-lg">
+                  <div className="flex items-center space-x-3">
+                    {getFileIcon(file)}
+                    <div>
+                      <div className="font-medium">{file.name}</div>
+                      <div className="text-xs text-muted-foreground">
+                        {(file.size / 1024 / 1024).toFixed(2)} MB
+                      </div>
+                    </div>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() => removeFile(index)}
+                    disabled={uploading}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
                 </div>
-              ) : uploading && progress === 100 ? (
-                <div className="flex items-center text-sm text-primary">
-                  <Check className="mr-1 h-4 w-4" />
-                  Processing document...
+              ))}
+              {uploading && (
+                <div className="w-full max-w-md space-y-2">
+                  <div className="text-sm text-center">{currentFile}</div>
+                  <Progress value={currentProgress} className="h-2" />
                 </div>
-              ) : null}
+              )}
             </div>
           ) : (
             <div className="flex flex-col items-center justify-center space-y-2">
@@ -310,10 +335,10 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
             Select File
           </Button>
           <Button
-            onClick={uploadFile}
-            disabled={!file || uploading}
+            onClick={uploadFiles}
+            disabled={files.length === 0 || uploading}
           >
-            {uploading ? "Processing..." : "Upload"}
+            {uploading ? "Processing..." : `Upload ${files.length} File${files.length !== 1 ? 's' : ''}`}
           </Button>
         </div>
       </CardFooter>
