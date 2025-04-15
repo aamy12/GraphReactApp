@@ -69,16 +69,21 @@ class InMemoryGraph:
     def create_node(self, label: str, properties: Dict[str, Any], user_id: int) -> Node:
         """Create a node in the in-memory graph"""
         self.id_counter += 1
-        node_id = str(self.id_counter)
+        node_id = str(uuid.uuid4())
         
-        # Add user ID to properties
-        properties["created_by"] = user_id
+        # Add user ID and metadata to properties
+        properties.update({
+            "created_by": user_id,
+            "created_at": datetime.now().isoformat(),
+            "id": node_id
+        })
         
+        # Create node with name from properties
         node = Node(
             id=node_id,
             label=label,
             properties=properties,
-            name=properties.get("name", f"{label}-{node_id}")
+            name=properties.get("name", properties.get("title", f"{label}-{node_id}"))
         )
         
         self.nodes.append(node)

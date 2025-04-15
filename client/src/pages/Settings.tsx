@@ -48,13 +48,16 @@ export default function Settings() {
     try {
       const response = await systemAPI.setDbConfig(useInMemory);
       
-      if (response.data.config.connected) {
+      if (response.data.config) {
+        // Update local state to match server state
+        setUseInMemory(response.data.config.useInMemory);
+        
         toast({
           title: "Settings Updated",
-          description: `Database mode set to ${useInMemory ? "in-memory" : "Neo4j"}.`,
+          description: `Database mode set to ${response.data.config.useInMemory ? "in-memory" : "Neo4j"}.`,
         });
         
-        // Update health status instead of reloading
+        // Update health status
         await checkHealth();
       } else {
         toast({
