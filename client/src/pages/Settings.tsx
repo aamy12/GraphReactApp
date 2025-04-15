@@ -54,8 +54,8 @@ export default function Settings() {
           description: `Database mode set to ${useInMemory ? "in-memory" : "Neo4j"}.`,
         });
         
-        // Force reload to apply new database configuration
-        window.location.reload();
+        // Update health status instead of reloading
+        await checkHealth();
       } else {
         toast({
           title: "Error",
