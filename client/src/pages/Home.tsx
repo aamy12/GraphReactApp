@@ -38,34 +38,45 @@ export default function Home() {
       </header>
 
       {/* Hero section */}
-      <section className="py-20 container mx-auto px-4">
+      <section className="relative py-32 container mx-auto px-4 overflow-hidden">
+        <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-primary/10 -z-10" />
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,#80808012_1px,transparent_1px),linear-gradient(to_bottom,#80808012_1px,transparent_1px)] bg-[size:24px_24px] -z-10" />
         <div className="flex flex-col md:flex-row gap-12 items-center">
-          <div className="md:w-1/2 space-y-6">
-            <h2 className="text-4xl md:text-5xl font-bold tracking-tight">
-              Explore Your Knowledge with Natural Language
+          <div className="md:w-1/2 space-y-8">
+            <div className="inline-flex items-center rounded-full border px-4 py-1.5 text-sm font-medium bg-background/30 backdrop-blur-sm">
+              <span className="flex h-2 w-2 rounded-full bg-primary mr-2" />
+              Knowledge Graph Explorer
+            </div>
+            <h2 className="text-4xl md:text-6xl font-bold tracking-tight leading-tight bg-gradient-to-br from-foreground to-foreground/70 bg-clip-text text-transparent">
+              Explore Knowledge with Natural Language
             </h2>
-            <p className="text-xl text-muted-foreground">
-              Upload documents, build knowledge graphs, and query your data using natural language.
-              Our AI-powered system provides insights and visualization to help you understand complex information.
+            <p className="text-xl text-muted-foreground leading-relaxed">
+              Transform your documents into interactive knowledge graphs. Query your data using natural language and discover insights through AI-powered visualization.
             </p>
-            <div className="flex gap-4">
-              <Button size="lg" asChild>
-                <Link href="/register">Get Started</Link>
+            <div className="flex gap-4 pt-4">
+              <Button size="lg" className="h-12 px-8 text-base" asChild>
+                <Link href="/register">Get Started Free</Link>
               </Button>
-              <Button size="lg" variant="outline" asChild>
-                <Link href="/login">Already have an account?</Link>
+              <Button size="lg" variant="outline" className="h-12 px-8 text-base group" asChild>
+                <Link href="/login">
+                  Sign In
+                  <span className="ml-2 transition-transform group-hover:translate-x-1">→</span>
+                </Link>
               </Button>
             </div>
           </div>
           <div className="md:w-1/2 flex justify-center">
-            <div className="w-full h-[400px] bg-muted rounded-lg flex items-center justify-center">
-              <svg xmlns="http://www.w3.org/2000/svg" width="200" height="200" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="6" r="4"></circle>
-                <circle cx="6" cy="17" r="3"></circle>
-                <circle cx="18" cy="17" r="3"></circle>
-                <line x1="12" y1="10" x2="6" y2="14"></line>
-                <line x1="12" y1="10" x2="18" y2="14"></line>
-              </svg>
+            <div className="relative w-full h-[500px] rounded-xl border bg-background/50 backdrop-blur-sm shadow-2xl overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-primary/10" />
+              <div className="relative w-full h-full flex items-center justify-center p-8">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1" strokeLinecap="round" strokeLinejoin="round" className="w-full h-full max-w-[300px] text-primary/80">
+                  <circle cx="12" cy="6" r="4"></circle>
+                  <circle cx="6" cy="17" r="3"></circle>
+                  <circle cx="18" cy="17" r="3"></circle>
+                  <line x1="12" y1="10" x2="6" y2="14"></line>
+                  <line x1="12" y1="10" x2="18" y2="14"></line>
+                </svg>
+              </div>
             </div>
           </div>
         </div>

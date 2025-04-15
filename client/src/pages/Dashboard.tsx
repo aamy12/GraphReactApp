@@ -105,8 +105,23 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="container mx-auto p-4 space-y-6">
-      <h1 className="text-2xl font-bold mb-6">Knowledge Graph Dashboard</h1>
+    <div className="container mx-auto p-6 space-y-8">
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">Knowledge Graph Dashboard</h1>
+          <p className="text-muted-foreground mt-1">Explore and analyze your knowledge graph</p>
+        </div>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" size="sm" className="text-xs">
+            <History className="h-3 w-3 mr-1" />
+            View History
+          </Button>
+          <Button variant="outline" size="sm" className="text-xs">
+            <BarChart className="h-3 w-3 mr-1" />
+            Analytics
+          </Button>
+        </div>
+      </div>
       
       {/* System status alerts */}
       {healthStatus && (
@@ -186,11 +201,14 @@ export default function Dashboard() {
             onValueChange={setActiveTab} 
             className="w-full"
           >
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="query">Query Knowledge</TabsTrigger>
-              <TabsTrigger value="upload" className="flex items-center gap-1">
-                <UploadCloud className="h-4 w-4" />
-                <span>Upload Document</span>
+            <TabsList className="inline-flex h-12 items-center justify-center rounded-lg bg-muted p-1 text-muted-foreground w-full">
+              <TabsTrigger value="query" className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-6 py-3 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                <Search className="h-4 w-4 mr-2" />
+                Query Knowledge
+              </TabsTrigger>
+              <TabsTrigger value="upload" className="inline-flex items-center justify-center whitespace-nowrap rounded-md px-6 py-3 text-sm font-medium ring-offset-background transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:pointer-events-none disabled:opacity-50 data-[state=active]:bg-background data-[state=active]:text-foreground data-[state=active]:shadow-sm">
+                <UploadCloud className="h-4 w-4 mr-2" />
+                Upload Document
               </TabsTrigger>
             </TabsList>
             
