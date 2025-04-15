@@ -13,16 +13,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { useInMemory } = req.body;
       // Switch storage implementation based on configuration
-      if (useInMemory) {
-        const memStorage = new MemStorage();
-        global.storage = memStorage;
-      }
+      const memStorage = useInMemory ? new MemStorage() : storage;
+      global.storage = memStorage;
+      
       res.json({ 
         message: "Database configuration updated",
         config: { useInMemory, connected: true } 
       });
     } catch (error) {
-      res.status(500).json({ error: "Failed to update database configuration" });
+      console.error("Database config error:", error);
+      res.status(500).json({ error: error instanceof Error ? error.message : "Failed to update database configuration" });
     }
   });
 
