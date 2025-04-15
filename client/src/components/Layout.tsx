@@ -18,7 +18,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
 
   // Parse user data from localStorage
   const userString = localStorage.getItem('user');
-  const user = userString ? JSON.parse(userString) : null;
+  const user = userString && userString !== 'undefined' ? JSON.parse(userString) : null;
 
   const navigation = [
     {
