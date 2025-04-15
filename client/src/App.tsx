@@ -12,6 +12,9 @@ import Settings from "@/pages/Settings";
 import Layout from "@/components/Layout";
 import { useState, useEffect } from "react";
 import { useLocation } from "wouter";
+import QueryPage from "@/pages/QueryPage"; // Added import
+import UploadPage from "@/pages/UploadPage"; // Added import
+
 
 function Router() {
   // For demo purposes, we'll bypass authentication
@@ -50,6 +53,16 @@ function Router() {
       <Route path="/dashboard">
         <Layout onLogout={handleLogout}>
           <Dashboard />
+        </Layout>
+      </Route>
+      <Route path="/query"> {/* Added route */}
+        <Layout onLogout={handleLogout}>
+          <QueryPage /> {/* Added component */}
+        </Layout>
+      </Route>
+      <Route path="/upload"> {/* Added route */}
+        <Layout onLogout={handleLogout}>
+          <UploadPage /> {/* Added component */}
         </Layout>
       </Route>
       <Route path="/history">

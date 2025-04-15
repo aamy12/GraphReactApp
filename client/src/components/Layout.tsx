@@ -28,6 +28,18 @@ export default function Layout({ children, onLogout }: LayoutProps) {
       current: location === "/dashboard",
     },
     {
+      name: "Query Knowledge",
+      href: "/query",
+      icon: Search,
+      current: location === "/query",
+    },
+    {
+      name: "Upload Documents",
+      href: "/upload",
+      icon: Upload,
+      current: location === "/upload",
+    },
+    {
       name: "History",
       href: "/history",
       icon: History,
