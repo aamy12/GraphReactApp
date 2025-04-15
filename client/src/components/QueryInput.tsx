@@ -15,10 +15,10 @@ interface QueryInputProps {
 export default function QueryInput({ onSubmit, loading = false, defaultQuery = "" }: QueryInputProps) {
   const [query, setQuery] = useState(defaultQuery);
   const { toast } = useToast();
-  
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!query.trim()) {
       toast({
         title: "Query required",
@@ -27,10 +27,10 @@ export default function QueryInput({ onSubmit, loading = false, defaultQuery = "
       });
       return;
     }
-    
+
     onSubmit(query);
   };
-  
+
   const exampleQueries = [
     "Who is the CEO of Microsoft?",
     "What companies are located in San Francisco?",
@@ -38,23 +38,18 @@ export default function QueryInput({ onSubmit, loading = false, defaultQuery = "
     "When was the last board meeting?",
     "What are the key points in the quarterly report?"
   ];
-  
+
   const handleExampleClick = (example: string) => {
     setQuery(example);
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <Brain className="mr-2 h-5 w-5" />
-          Query Knowledge Graph
-        </CardTitle>
-        <CardDescription>
-          Ask a question about your uploaded documents
-        </CardDescription>
+    <Card className="glass-panel w-full">
+      <CardHeader className="space-y-2">
+        <CardTitle className="text-2xl font-bold bg-gradient-to-br from-secondary to-primary bg-clip-text text-transparent">Query Knowledge Graph</CardTitle>
+        <CardDescription className="text-base">Ask a question about your uploaded documents</CardDescription>
       </CardHeader>
-      <CardContent>
+      <CardContent className="space-y-4">
         <form onSubmit={handleSubmit} className="space-y-4">
           <Textarea
             placeholder="What would you like to know about your documents?"
@@ -78,7 +73,7 @@ export default function QueryInput({ onSubmit, loading = false, defaultQuery = "
             </Button>
           </div>
         </form>
-        
+
         <div className="mt-6">
           <h3 className="text-sm font-medium mb-2">Example questions:</h3>
           <div className="flex flex-wrap gap-2">

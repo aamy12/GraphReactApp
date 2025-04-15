@@ -106,7 +106,7 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-8">
+    <div className="container mx-auto p-6 space-y-8 min-h-screen">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Knowledge Graph Dashboard</h1>
@@ -155,7 +155,7 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left sidebar with graph overview */}
         <div className="lg:col-span-1 space-y-6">
-          <div className="rounded-lg border p-4">
+          <div className="rounded-lg glass-panel p-6">
             <div className="flex items-center gap-2 mb-4">
               <Database className="h-5 w-5" />
               <h2 className="font-semibold">Knowledge Graph Overview</h2>

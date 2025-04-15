@@ -37,7 +37,7 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
   const handleDrop = (e: React.DragEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
+
     if (e.dataTransfer.files) {
       const droppedFiles = Array.from(e.dataTransfer.files);
       setFiles(prev => [...prev, ...droppedFiles]);
@@ -56,12 +56,12 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
       'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       'application/msword',
       'text/plain',
-      
+
       // Images
       'image/jpeg',
       'image/png',
       'image/tiff',
-      
+
       // Data formats
       'application/json',
       'application/ld+json',
@@ -72,26 +72,26 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
       'application/xml',
       'text/xml'
     ];
-    
+
     // Check file extension for common formats where MIME might not be reliable
     const fileName = file.name.toLowerCase();
     const validExtensions = ['.pdf', '.jpg', '.jpeg', '.png', '.tiff', '.txt', '.doc', 
                             '.docx', '.json', '.csv', '.xls', '.xlsx', '.tsv', '.xml'];
-    
+
     const hasValidExtension = validExtensions.some(ext => fileName.endsWith(ext));
-    
+
     const maxSize = 15 * 1024 * 1024; // 15MB
-    
+
     if (!allowedTypes.includes(file.type) && !hasValidExtension) {
       setError("Unsupported file type. Please upload PDF, image, document, or data files (JSON, CSV, etc.).");
       return false;
     }
-    
+
     if (file.size > maxSize) {
       setError("File is too large. Maximum file size is 15MB.");
       return false;
     }
-    
+
     return true;
   };
 
@@ -100,20 +100,20 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
       setError("Please select files to upload.");
       return;
     }
-    
+
     setUploading(true);
-    
+
     try {
       for (let i = 0; i < files.length; i++) {
         const file = files[i];
-        
+
         if (!validateFile(file)) {
           continue;
         }
-        
+
         setCurrentFile(file.name);
         setCurrentProgress(0);
-        
+
         // Simulate progress updates for each file
         const progressInterval = setInterval(() => {
           setCurrentProgress((prev) => {
@@ -124,18 +124,18 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
             return prev + 10;
           });
         }, 300);
-        
+
         const response = await fileAPI.uploadFile(file);
-        
+
         clearInterval(progressInterval);
         setCurrentProgress(100);
-        
+
         toast({
           title: "Upload successful",
           description: `${file.name} has been successfully processed.`,
         });
       }
-      
+
       // Reset the form
       setFiles([]);
       setCurrentFile("");
@@ -143,13 +143,13 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
       }
-      
+
       // Call the completion callback
       onComplete();
     } catch (error) {
       console.error("Upload error:", error);
       setError("An error occurred while uploading the file. Please try again.");
-      
+
       toast({
         title: "Upload failed",
         description: "There was an error processing your document.",
@@ -162,7 +162,7 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
 
   const getFileIcon = (file: File) => {
     const fileName = file.name.toLowerCase();
-    
+
     // Import additional icons
     const FileJson = () => (
       <div className="h-10 w-10 flex items-center justify-center text-purple-600 relative">
@@ -170,28 +170,28 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
         <span className="z-10 text-xs font-bold mt-1">JSON</span>
       </div>
     );
-    
+
     const FileCsv = () => (
       <div className="h-10 w-10 flex items-center justify-center text-green-600 relative">
         <FileText className="h-10 w-10 absolute" />
         <span className="z-10 text-xs font-bold mt-1">CSV</span>
       </div>
     );
-    
+
     const FileExcel = () => (
       <div className="h-10 w-10 flex items-center justify-center text-green-700 relative">
         <FileText className="h-10 w-10 absolute" />
         <span className="z-10 text-xs font-bold mt-1">XLS</span>
       </div>
     );
-    
+
     const FileXml = () => (
       <div className="h-10 w-10 flex items-center justify-center text-amber-600 relative">
         <FileText className="h-10 w-10 absolute" />
         <span className="z-10 text-xs font-bold mt-1">XML</span>
       </div>
     );
-    
+
     // Check by MIME type first
     if (file.type.includes('pdf')) {
       return <FileText className="h-10 w-10 text-red-500" />;
@@ -208,7 +208,7 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
     } else if (file.type.includes('xml')) {
       return <FileXml />;
     }
-    
+
     // Fallback to extension check
     if (fileName.endsWith('.pdf')) {
       return <FileText className="h-10 w-10 text-red-500" />;
@@ -232,15 +232,10 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
   };
 
   return (
-    <Card className="w-full">
-      <CardHeader>
-        <CardTitle className="flex items-center">
-          <Upload className="mr-2 h-5 w-5" />
-          Upload Document
-        </CardTitle>
-        <CardDescription>
-          Upload PDF, image, text, JSON, CSV, Excel, or XML files to add to your knowledge graph
-        </CardDescription>
+    <Card className="glass-panel">
+      <CardHeader className="space-y-2">
+        <CardTitle className="text-2xl font-bold bg-gradient-to-br from-secondary to-primary bg-clip-text text-transparent">Upload Documents</CardTitle>
+        <CardDescription className="text-base">Add documents to your knowledge graph</CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
         <div
@@ -300,14 +295,14 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
             disabled={uploading}
           />
         </div>
-        
+
         {error && (
           <Alert variant="destructive">
             <AlertTriangle className="h-4 w-4" />
             <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
-        
+
         <div className="text-xs text-muted-foreground">
           <p>Your documents will be processed to extract entities and relationships.</p>
           <p>Personal or sensitive information will remain private to your account.</p>
