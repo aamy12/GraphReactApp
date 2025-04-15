@@ -6,7 +6,7 @@ import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
 import { fileAPI } from "@/lib/api";
-import { Upload, AlertTriangle, FileText, FileImage, FileArchive, Check } from "lucide-react";
+import { Upload, AlertTriangle, FileText, FileImage, FileArchive, Check, X } from "lucide-react";
 
 interface FileUploadProps {
   onComplete: () => void;
