@@ -245,7 +245,7 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
       <CardContent className="space-y-4">
         <div
           className={`border-2 border-dashed rounded-lg p-6 text-center ${
-            file ? "border-primary bg-primary/5" : "border-muted-foreground/25"
+            files.length > 0 ? "border-primary bg-primary/5" : "border-muted-foreground/25"
           }`}
           onDragOver={handleDragOver}
           onDrop={handleDrop}
@@ -317,12 +317,12 @@ export default function FileUpload({ onComplete }: FileUploadProps) {
         <Button
           variant="outline"
           onClick={() => {
-            setFile(null);
+            setFiles([]);
             if (fileInputRef.current) {
               fileInputRef.current.value = "";
             }
           }}
-          disabled={!file || uploading}
+          disabled={files.length === 0 || uploading}
         >
           Clear
         </Button>
