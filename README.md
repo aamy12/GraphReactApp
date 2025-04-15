@@ -2,6 +2,63 @@
 
 A web application for creating, querying, and visualizing knowledge graphs with natural language processing capabilities.
 
+## Local Development Setup
+
+### Prerequisites
+- Node.js (v20+)
+- Python (v3.11+)
+- NPM or Yarn
+- Neo4j database instance
+- OpenAI API key
+
+### Installation
+
+1. Clone the repository
+2. Install Node.js dependencies:
+```bash
+npm install
+```
+
+3. Install Python dependencies:
+```bash
+pip install -r requirements.txt
+```
+
+4. Create a `.env` file in the root directory:
+```env
+# Flask configuration
+SECRET_KEY=your-secret-key
+FLASK_ENV=development
+
+# JWT configuration
+JWT_SECRET_KEY=your-jwt-secret-key
+
+# Neo4j configuration
+NEO4J_URI=bolt://localhost:7687
+NEO4J_USER=neo4j
+NEO4J_PASSWORD=password
+
+# OpenAI configuration
+OPENAI_API_KEY=your-openai-api-key
+
+# File upload configuration
+UPLOAD_FOLDER=./uploads
+```
+
+### Running the Application
+
+1. Start the backend server:
+```bash
+python run.py
+```
+
+2. In a separate terminal, start the frontend development server:
+```bash
+npm run dev
+```
+
+3. Access the application at http://localhost:5000
+
 ## Features
 
 - User authentication system
@@ -29,40 +86,8 @@ A web application for creating, querying, and visualizing knowledge graphs with 
 - JWT for authentication
 - SQLite for user management
 
-## Setup Instructions
 
-### Prerequisites
-- Node.js and npm
-- Python 3.8+ and pip
-- Neo4j database (local or cloud instance)
-- OpenAI API key
-
-### Environment Setup
-
-1. Clone the repository
-2. Copy `.env.example` to `.env` and fill in your configuration details
-3. Install backend dependencies:
-   ```
-   pip install -r requirements.txt
-   ```
-4. Install frontend dependencies:
-   ```
-   npm install
-   ```
-
-### Running the Application
-
-1. Start the backend server:
-   ```
-   python server/app.py
-   ```
-2. Start the frontend development server:
-   ```
-   npm run dev
-   ```
-3. Access the application at http://localhost:5000
-
-### Setting Up Neo4j
+## Setting Up Neo4j
 
 1. Install Neo4j or use Neo4j AuraDB (cloud version)
 2. Create a new database
