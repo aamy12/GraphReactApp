@@ -191,13 +191,18 @@ class DocumentProcessor:
             # Perform OCR
             text = pytesseract.image_to_string(image)
             
-            # Create document chunks
+            # Create document chunks and extract entities
             chunks = self._create_document_chunks(text, metadata)
+            
+            # Extract entities and relationships
+            extracted = self.extract_entities_and_relationships(text)
             
             return {
                 "text": text,
                 "metadata": metadata,
-                "chunks": chunks
+                "chunks": chunks,
+                "entities": extracted.get("entities", []),
+                "relationships": extracted.get("relationships", [])
             }
             
         except Exception as e:

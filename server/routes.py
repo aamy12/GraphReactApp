@@ -237,26 +237,34 @@ def upload_file():
         
         # Process the file and create a knowledge graph
         result = knowledge_graph_service.create_document_graph(
-            file_path, user_id, filename, file_type
+            file_path=file_path,
+            user_id=user_id,
+            file_name=filename,
+            file_type=file_type
         )
         
         if "error" in result:
+            logger.error(f"Error processing file: {result['error']}")
             return jsonify({"error": result["error"]}), 500
         
         # Return processing results
-        return jsonify({
+        response = {
             "message": "File processed successfully",
             "file": {
-                "id": 1,  # This would normally come from the database
                 "name": filename,
-                "size": file_size
-            },
-            "graph": {
-                "nodesCreated": result.get("document", {}).get("nodeCount", 0),
-                "relationshipsCreated": result.get("document", {}).get("relationshipCount", 0),
-                "graphData": result.get("graphData", {})
+                "size": file_size,
+                "type": file_type
             }
-        }), 201
+        }
+        
+        if result.get("document"):
+            response["graph"] = {
+                "nodesCreated": result["document"]["nodeCount"],
+                "relationshipsCreated": result["document"]["relationshipCount"],
+                "entities": result.get("entities", [])
+            }
+        
+        return jsonify(response), 201
     
     except Exception as e:
         logger.error(f"Error uploading file: {str(e)}")
