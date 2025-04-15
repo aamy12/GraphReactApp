@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Menu, Home, History, LogOut, BarChart, Upload } from "lucide-react";
+import { Menu, Home, History, LogOut, BarChart, Upload, Search } from "lucide-react";
 
 interface LayoutProps {
   children: React.ReactNode;
