@@ -33,6 +33,12 @@ export default function Layout({ children, onLogout }: LayoutProps) {
       icon: History,
       current: location === "/history",
     },
+    {
+      name: "Settings",
+      href: "/settings",
+      icon: BarChart,
+      current: location === "/settings",
+    },
   ];
 
   const handleLogout = () => {
