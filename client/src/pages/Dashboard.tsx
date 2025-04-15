@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { useToast } from "@/hooks/use-toast";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
+import { Button } from "@/components/ui/button";
 import { UploadCloud, Info, Database, AlertTriangle, History, BarChart, Search } from "lucide-react";
 import { graphAPI, QueryResponse, systemAPI } from "@/lib/api";
 import FileUpload from "@/components/FileUpload";
