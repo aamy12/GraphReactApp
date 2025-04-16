@@ -16,7 +16,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   const [location] = useLocation();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
-  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light'); // Add theme state
+  const [theme, setTheme] = useTheme();
 
   // Parse user data from localStorage
   const userString = localStorage.getItem('user');
@@ -130,7 +130,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
         </Sheet>
       ) : (
         <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 z-50">
-          <div className={`flex flex-col h-full border-r bg-${theme === 'dark' ? 'dark' : 'sidebar'} text-${theme === 'dark' ? 'white' : 'sidebar-foreground'}`}> {/* Apply theme to sidebar */}
+          <div className="flex flex-col h-full border-r bg-background text-foreground">
             <ScrollArea className="flex-1 flex flex-col justify-between py-4">
               <NavLinks />
             </ScrollArea>
