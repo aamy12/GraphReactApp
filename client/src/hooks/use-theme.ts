@@ -4,9 +4,13 @@ import { useEffect, useState } from "react";
 type Theme = "dark" | "light";
 
 export function useTheme() {
-  const [theme, setTheme] = useState<Theme>(
-    () => (localStorage.getItem("theme") as Theme) || "light"
-  );
+  const [theme, setTheme] = useState<Theme>(() => {
+    if (typeof window !== 'undefined') {
+      return (localStorage.getItem("theme") as Theme) || 
+        (window.matchMedia('(prefers-color-scheme: dark)').matches ? "dark" : "light");
+    }
+    return "light";
+  });
 
   useEffect(() => {
     const root = window.document.documentElement;

@@ -108,7 +108,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   );
 
   return (
-    <div className={`flex h-screen overflow-hidden bg-${theme === 'dark' ? 'dark' : 'background'}`}> {/* Apply theme to background */}
+    <div className="flex h-screen overflow-hidden bg-background"> {/* Apply theme to background */}
       {/* Mobile sidebar */}
       {isMobile ? (
         <Sheet open={open} onOpenChange={setOpen}>
@@ -142,18 +142,16 @@ export default function Layout({ children, onLogout }: LayoutProps) {
       <main className={`flex-1 overflow-auto ${isMobile ? 'pt-16' : 'md:pl-64'}`}>
         <div className="border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
           <div className="flex h-14 items-center px-4 gap-4 justify-end">
-            {user && (
-              <div className="flex items-center gap-2 mr-auto">
-                <Avatar className="h-8 w-8">
-                  <AvatarImage src={`https://www.gravatar.com/avatar/${user.email}?d=identicon`} />
-                  <AvatarFallback>{user.username.charAt(0).toUpperCase()}</AvatarFallback>
-                </Avatar>
-                <div className="hidden md:block">
-                  <p className="text-sm font-medium">{user.username}</p>
-                  <p className="text-xs text-muted-foreground">{user.email}</p>
-                </div>
+            <div className="flex items-center gap-2 mr-auto">
+              <Avatar className="h-8 w-8">
+                <AvatarImage src={user?.email ? `https://www.gravatar.com/avatar/${user.email}?d=identicon` : undefined} />
+                <AvatarFallback>{user?.username?.charAt(0).toUpperCase() || '?'}</AvatarFallback>
+              </Avatar>
+              <div className="hidden md:block">
+                <p className="text-sm font-medium">{user?.username || 'Guest'}</p>
+                {user?.email && <p className="text-xs text-muted-foreground">{user.email}</p>}
               </div>
-            )}
+            </div>
             <Button
               variant="outline"
               size="icon"
