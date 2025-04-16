@@ -27,3 +27,7 @@ langchain-community
 neo4j
 networkx
 unstructured
+chromadb
+langchain-openai
+chromadb
+langchain-openai

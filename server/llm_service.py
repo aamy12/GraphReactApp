@@ -1,3 +1,4 @@
+
 import os
 import logging
 from typing import Dict, List, Any, Optional
@@ -22,27 +23,39 @@ class LLMService:
         self.initialize_components()
 
     def initialize_components(self):
+        """Initialize LLM components with API key"""
+        self.api_key = os.getenv("OPENAI_API_KEY")
         if not self.api_key:
             logger.warning("No OpenAI API key found")
-            return
+            return False
 
         try:
             self.model = ChatOpenAI(
                 temperature=0.2,
                 api_key=self.api_key,
-                model="gpt-4"
+                model="gpt-3.5-turbo"  # Using a more accessible model
             )
 
             self.embeddings = OpenAIEmbeddings(api_key=self.api_key)
             self.vector_store = Chroma(embedding_function=self.embeddings)
-
+            
             logger.info("Successfully initialized LLM components")
+            return True
         except Exception as e:
             logger.error(f"Error initializing LLM components: {e}")
+            return False
 
-    def process_document(self, text: str) -> List[Dict[str, Any]]:
+    def is_available(self) -> bool:
+        """Check if LLM service is properly configured and available"""
+        return self.model is not None and self.embeddings is not None
+
+    def reinitialize(self) -> bool:
+        """Reinitialize the service with current environment variables"""
+        return self.initialize_components()
+
+    def process_document(self, text: str) -> Dict[str, Any]:
         """Process document text and extract entities/relationships"""
-        if not self.model:
+        if not self.is_available():
             return {"entities": [], "relationships": []}
 
         try:
@@ -66,12 +79,12 @@ class LLMService:
             Focus on meaningful connections and important entities.
             """
 
-            chain = self.model.invoke([
+            response = self.model.invoke([
                 {"role": "system", "content": extraction_prompt},
                 {"role": "user", "content": text[:4000]}
             ])
-
-            return chain
+            
+            return response.content if isinstance(response.content, dict) else {"entities": [], "relationships": []}
 
         except Exception as e:
             logger.error(f"Error processing document: {e}")
@@ -79,7 +92,7 @@ class LLMService:
 
     def query_knowledge_graph(self, query: str, graph) -> Dict[str, str]:
         """Query the knowledge graph using GraphRAG approach"""
-        if not self.model or not self.vector_store:
+        if not self.is_available():
             return {
                 "query": query,
                 "response": "LLM service not available",
