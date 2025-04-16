@@ -286,7 +286,12 @@ def get_user_files():
 def health_check():
     """Health check endpoint"""
     try:
-        # Check Neo4j connectivity
+        # Check Neo4j connectivity and credentials
+        neo4j_uri = os.getenv("NEO4J_URI")
+        neo4j_user = os.getenv("NEO4J_USER")
+        neo4j_configured = all([neo4j_uri, neo4j_user])
+        
+        # Check actual connectivity
         neo4j_status = "connected" if db.verify_connectivity() else "disconnected"
         
         # Check if we're using in-memory database
