@@ -1,0 +1,25 @@
+The above error occurred in the <NavLinks> component:
+
+    at NavLinks (https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/src/components/Layout.tsx:139:7)
+    at div
+    at div
+    at https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-J37UDW3T.js?v=a073a34f:41:13
+    at https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-scroll-area.js?v=a073a34f:118:13
+    at div
+    at https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-J37UDW3T.js?v=a073a34f:41:13
+    at Provider (https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/chunk-CGMBMWH4.js?v=a073a34f:43:15)
+    at https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@radix-ui_react-scroll-area.js?v=a073a34f:56:7
+    at _c (https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/src/components/ui/scroll-area.tsx:21:11)
+    at div
+    at aside
+    at div
+    at Layout (https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/src/components/Layout.tsx:25:34)
+    at Route (https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=a073a34f:323:16)
+    at Switch (https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/wouter.js?v=a073a34f:379:17)
+    at Router (https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/src/App.tsx?v=2CO_0atJcGRPjoru09-LL:35:49)
+    at QueryClientProvider (https://d0fe1383-451a-4735-ad07-3147948ec275-00-1u11s7t4556vf.pike.replit.dev/@fs/home/runner/workspace/node_modules/.vite/deps/@tanstack_react-query.js?v=a073a34f:2805:3)
+    at App
+
+Consider adding an error boundary to your tree to customize error handling behavior.
+Visit https://reactjs.org/link/error-boundaries to learn more about error boundaries.
+user is not defined
