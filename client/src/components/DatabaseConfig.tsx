@@ -102,7 +102,11 @@ export default function DatabaseConfig() {
         </div>
 
         {/* Neo4j connection details */}
-        <div className={useInMemory ? "opacity-50 pointer-events-none" : ""}>
+        <div className={cn(
+          "space-y-4 border rounded-lg p-4 mt-4",
+          useInMemory && "opacity-50 pointer-events-none"
+        )}>
+          <h3 className="font-medium">Neo4j Connection Details</h3>
           <div className="space-y-1 mb-2">
             <Label htmlFor="neo4j-uri">Neo4j URI</Label>
             <Input

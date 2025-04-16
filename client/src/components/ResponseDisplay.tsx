@@ -14,7 +14,7 @@ interface ResponseDisplayProps {
 
 export default function ResponseDisplay({ response }: ResponseDisplayProps) {
   const [activeTab, setActiveTab] = useState("answer");
-  
+
   // Format the timestamp
   const formattedTimestamp = response.timestamp
     ? format(new Date(response.timestamp), "MMM d, yyyy 'at' h:mm a")
@@ -50,7 +50,7 @@ export default function ResponseDisplay({ response }: ResponseDisplayProps) {
               </div>
             </TabsTrigger>
           </TabsList>
-          
+
           <TabsContent value="answer" className="space-y-4">
             <div className="prose prose-sm max-w-none dark:prose-invert">
               <ReactMarkdown>
@@ -58,7 +58,7 @@ export default function ResponseDisplay({ response }: ResponseDisplayProps) {
               </ReactMarkdown>
             </div>
           </TabsContent>
-          
+
           <TabsContent value="graph">
             <div className="h-[500px]">
               {response.graphData && response.graphData.nodes.length > 0 ? (

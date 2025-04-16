@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/use-mobile";
-import { Menu, Home, History, LogOut, BarChart, Upload, Search } from "lucide-react";
+import { Menu, Home, History, LogOut, BarChart, Upload, Search, Sun, Moon } from "lucide-react";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -15,6 +15,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   const [location] = useLocation();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
+  const [theme, setTheme] = useState(localStorage.getItem('theme') || 'light'); // Add theme state
 
   // Parse user data from localStorage
   const userString = localStorage.getItem('user');
@@ -106,7 +107,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   );
 
   return (
-    <div className="flex h-screen overflow-hidden bg-background">
+    <div className={`flex h-screen overflow-hidden bg-${theme === 'dark' ? 'dark' : 'background'}`}> {/* Apply theme to background */}
       {/* Mobile sidebar */}
       {isMobile ? (
         <Sheet open={open} onOpenChange={setOpen}>
@@ -128,7 +129,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
         </Sheet>
       ) : (
         <aside className="hidden md:flex md:w-64 md:flex-col md:fixed md:inset-y-0 z-50">
-          <div className="flex flex-col h-full border-r bg-sidebar text-sidebar-foreground">
+          <div className={`flex flex-col h-full border-r bg-${theme === 'dark' ? 'dark' : 'sidebar'} text-${theme === 'dark' ? 'white' : 'sidebar-foreground'}`}> {/* Apply theme to sidebar */}
             <ScrollArea className="flex-1 flex flex-col justify-between py-4">
               <NavLinks />
             </ScrollArea>
@@ -138,6 +139,25 @@ export default function Layout({ children, onLogout }: LayoutProps) {
 
       {/* Main content */}
       <main className={`flex-1 overflow-auto ${isMobile ? 'pt-16' : 'md:pl-64'}`}>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={() => {
+              const newTheme = theme === "dark" ? "light" : "dark";
+              setTheme(newTheme);
+              localStorage.setItem('theme', newTheme); // Persist theme
+            }}
+          >
+            {theme === "dark" ? (
+              <Sun className="h-5 w-5" />
+            ) : (
+              <Moon className="h-5 w-5" />
+            )}
+            <span className="sr-only">Toggle theme</span>
+          </Button>
+          {/* User menu/auth buttons would go here */}
+        </div>
         {children}
       </main>
     </div>
