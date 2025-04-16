@@ -83,12 +83,6 @@ export default function Layout({ children, onLogout }: LayoutProps) {
         </div>
       </div>
       <div className="mt-auto px-3 py-2">
-        {user && (
-          <div className="mb-2 px-2 py-1.5 rounded-md">
-            <p className="text-sm font-medium">{user.username}</p>
-            <p className="text-xs text-muted-foreground truncate">{user.email}</p>
-          </div>
-        )}
         <Button
           variant="ghost"
           className="w-full justify-start text-red-500 hover:text-red-500 hover:bg-red-50"
