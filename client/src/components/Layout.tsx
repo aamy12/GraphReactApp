@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link, useLocation } from "wouter";
-import { useTheme } from "@/hooks/use-theme";
+import { useTheme } from "next-themes";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
@@ -17,7 +17,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   const [location] = useLocation();
   const isMobile = useIsMobile();
   const [open, setOpen] = useState(false);
-  const [theme, setTheme] = useTheme();
+  const { theme, setTheme } = useTheme();
 
   // Parse user data from localStorage
   const userString = localStorage.getItem('user');
