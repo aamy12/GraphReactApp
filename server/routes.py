@@ -319,6 +319,36 @@ def health_check():
             "message": str(e)
         }), 500
 
+@api.route('/db-config/test', methods=['POST'])
+def test_db_connection():
+    """Test Neo4j database connection"""
+    try:
+        data = request.get_json()
+        if not all(k in data for k in ['uri', 'username', 'password']):
+            return jsonify({
+                "success": False,
+                "message": "Missing connection details"
+            }), 400
+
+        # Try to establish a test connection
+        test_db = Neo4jDatabase(data['uri'], data['username'], data['password'])
+        if test_db.verify_connectivity():
+            return jsonify({
+                "success": True,
+                "message": "Successfully connected to Neo4j database"
+            })
+        else:
+            return jsonify({
+                "success": False,
+                "message": "Failed to connect to Neo4j database"
+            })
+    except Exception as e:
+        logger.error(f"Neo4j connection test failed: {e}")
+        return jsonify({
+            "success": False,
+            "message": f"Connection error: {str(e)}"
+        }), 500
+
 @api.route('/db-config', methods=['POST'])
 def set_db_config():
     """Set database configuration"""
@@ -328,9 +358,15 @@ def set_db_config():
             return jsonify({"error": "Invalid request data"}), 400
         
         use_in_memory = data.get('useInMemory', False)
+        neo4j_config = data.get('neo4j')
         
-        # Update environment variable
+        # Update environment variables
         os.environ['USE_IN_MEMORY_DB'] = str(use_in_memory).lower()
+        
+        if not use_in_memory and neo4j_config:
+            os.environ['NEO4J_URI'] = neo4j_config['uri']
+            os.environ['NEO4J_USER'] = neo4j_config['username']
+            os.environ['NEO4J_PASSWORD'] = neo4j_config['password']
         
         # Reinitialize database connection
         global db

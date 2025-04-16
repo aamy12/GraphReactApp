@@ -17,12 +17,39 @@ export default function DatabaseConfig() {
   const [connected, setConnected] = useState(false);
   const { toast } = useToast();
 
+  const handleTestConnection = async () => {
+    try {
+      const response = await axios.post("/api/db-config/test", {
+        uri: neo4jURI,
+        username: neo4jUser,
+        password: neo4jPassword
+      });
+      
+      toast({
+        title: "Connection Test",
+        description: response.data.message,
+        variant: response.data.success ? "default" : "destructive",
+      });
+    } catch (error) {
+      toast({
+        title: "Connection Error",
+        description: "Failed to test Neo4j connection",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleSaveConfig = async () => {
     setLoading(true);
     try {
-      // Update environment variables (only in-memory for now)
+      // Update database configuration
       await axios.post("/api/db-config", {
-        useInMemory
+        useInMemory,
+        neo4j: !useInMemory ? {
+          uri: neo4jURI,
+          username: neo4jUser,
+          password: neo4jPassword
+        } : null
       });
 
       toast({
@@ -74,7 +101,7 @@ export default function DatabaseConfig() {
           />
         </div>
 
-        {/* Neo4j connection details - disabled for now */}
+        {/* Neo4j connection details */}
         <div className={useInMemory ? "opacity-50 pointer-events-none" : ""}>
           <div className="space-y-1 mb-2">
             <Label htmlFor="neo4j-uri">Neo4j URI</Label>
@@ -85,6 +112,9 @@ export default function DatabaseConfig() {
               onChange={(e) => setNeo4jURI(e.target.value)}
               disabled={useInMemory}
             />
+            <p className="text-xs text-muted-foreground">
+              Example: bolt://your-neo4j-host:7687
+            </p>
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-1">
@@ -109,6 +139,15 @@ export default function DatabaseConfig() {
               />
             </div>
           </div>
+          <Button 
+            variant="outline"
+            size="sm"
+            className="mt-4"
+            onClick={() => handleTestConnection()}
+            disabled={useInMemory || !neo4jURI || !neo4jUser || !neo4jPassword}
+          >
+            Test Connection
+          </Button>
         </div>
       </CardContent>
       <CardFooter className="flex justify-between">
