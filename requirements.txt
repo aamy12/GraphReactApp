@@ -15,3 +15,15 @@ pypdf==5.4.0
 pytesseract==0.3.13
 python-dotenv==1.1.0
 trafilatura==2.0.0
+chromadb
+langchain
+langchain-community
+neo4j
+networkx
+unstructured
+chromadb
+langchain
+langchain-community
+neo4j
+networkx
+unstructured
