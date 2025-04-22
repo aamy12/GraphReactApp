@@ -6,10 +6,14 @@ from pathlib import Path
 from flask import Flask, send_from_directory, jsonify, current_app
 from flask_cors import CORS
 
-from .routes import register_routes
-from .graph_db import Neo4jDatabase
-from .llm_service import llm_service
-from .knowledge_graph_service import knowledge_graph_service
+try:
+    from .routes import register_routes
+    from .graph_db import Neo4jDatabase
+    from .llm_service import llm_service
+    from .knowledge_graph_service import knowledge_graph_service
+except ImportError as e:
+    logger.error(f"Import error: {e}")
+    raise ImportError("Failed to import required modules. Please check your installation.")
 
 # Configure logging
 logging.basicConfig(

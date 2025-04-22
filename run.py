@@ -10,5 +10,6 @@ from server.app import create_app
 
 if __name__ == '__main__':
     app = create_app()
-    port = int(os.getenv('PORT', 5000))
+    # Use different port than Node.js server
+    port = int(os.getenv('FLASK_PORT', 3000))
     app.run(host='0.0.0.0', port=port, debug=True)
